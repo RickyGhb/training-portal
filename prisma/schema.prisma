@@ -1,0 +1,322 @@
+// Training Portal — Prisma schema
+// See Training_Website/Technical Implementation Blueprint.md for the source spec
+// and .claude/plans/i-m-planning-to-build-dreamy-floyd.md for the resolved decisions.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CEO
+  MANAGER
+  LOCATION_MANAGER
+  COORDINATOR
+  CONSULTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+  DELETED
+}
+
+enum ContentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AuditActionType {
+  USER_CREATED
+  USERNAME_CHANGED
+  PASSWORD_RESET
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  USER_DELETED
+  TRAINING_PATH_ASSIGNED
+  TRAINING_PATH_CHANGED
+  EXTRA_COURSE_ASSIGNED
+  EXTRA_COURSE_REMOVED
+  CONSULTANT_REASSIGNED
+  CONSULTANTS_BULK_REASSIGNED
+  LOCATION_CREATED
+  LOCATION_UPDATED
+  TRAINING_PATH_CREATED
+  TRAINING_PATH_UPDATED
+  TRAINING_PATH_DELETED
+  COURSE_CREATED
+  COURSE_UPDATED
+  COURSE_DELETED
+  VIDEO_CREATED
+  VIDEO_UPDATED
+  VIDEO_DELETED
+  REPORT_EXPORTED
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+}
+
+enum NotificationType {
+  REPORT_EXPORTED
+  PASSWORD_RESET
+  USER_DELETED
+}
+
+model Location {
+  id              String        @id @default(cuid())
+  name            String
+  code            String        @unique
+  status          ContentStatus @default(ACTIVE)
+  createdByUserId String?
+  createdBy       User?         @relation("LocationCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  users     User[]     @relation("UserLocation")
+  auditLogs AuditLog[]
+
+  @@index([status])
+}
+
+model User {
+  id            String     @id @default(cuid())
+  role          Role
+  firstName     String
+  lastName      String
+  username      String     @unique
+  usernameLower String     @unique // enforced-lowercase mirror for case-insensitive uniqueness
+  passwordHash  String
+  email         String?
+  phone         String?
+  status        UserStatus @default(ACTIVE)
+
+  locationId String?
+  location   Location? @relation("UserLocation", fields: [locationId], references: [id])
+
+  managerId    String?
+  manager      User?   @relation("ManagerToUsers", fields: [managerId], references: [id])
+  managedUsers User[]  @relation("ManagerToUsers")
+
+  locationManagerId        String?
+  locationManager          User?   @relation("LocationManagerToUsers", fields: [locationManagerId], references: [id])
+  managedByLocationManager User[]  @relation("LocationManagerToUsers")
+
+  coordinatorId      String?
+  coordinator        User?   @relation("CoordinatorToConsultants", fields: [coordinatorId], references: [id])
+  managedConsultants User[]  @relation("CoordinatorToConsultants")
+
+  createdByUserId String?
+  createdBy       User?   @relation("UserCreatedBy", fields: [createdByUserId], references: [id])
+  createdUsers    User[]  @relation("UserCreatedBy")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  createdLocations      Location[]                     @relation("LocationCreatedBy")
+  trainingAssignment    ConsultantTrainingAssignment?  @relation("ConsultantAssignment")
+  assignedTrainingPaths ConsultantTrainingAssignment[] @relation("AssignedByUser")
+  extraCourses          ConsultantExtraCourse[]        @relation("ConsultantExtraCourses")
+  assignedExtraCourses  ConsultantExtraCourse[]        @relation("ExtraCourseAssignedBy")
+  videoCompletions      VideoCompletion[]              @relation("ConsultantCompletions")
+  markedCompletions     VideoCompletion[]              @relation("MarkedByUser")
+  sessions              Session[]
+  auditLogsAsActor      AuditLog[]                     @relation("AuditActor")
+  auditLogsAsTarget     AuditLog[]                     @relation("AuditTargetUser")
+  notifications         Notification[]
+  createdTrainingPaths  TrainingPath[]                 @relation("TrainingPathCreatedBy")
+  createdCourses        Course[]                       @relation("CourseCreatedBy")
+  createdVideos         Video[]                        @relation("VideoCreatedBy")
+  updatedVideos         Video[]                        @relation("VideoUpdatedBy")
+
+  @@index([role])
+  @@index([locationId])
+  @@index([coordinatorId])
+  @@index([managerId])
+  @@index([locationManagerId])
+  @@index([status])
+}
+
+model TrainingPath {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  status          ContentStatus @default(ACTIVE)
+  createdByUserId String?
+  createdBy       User?         @relation("TrainingPathCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  courses     TrainingPathCourse[]
+  assignments ConsultantTrainingAssignment[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+}
+
+model Course {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  status          ContentStatus @default(ACTIVE)
+  createdByUserId String?
+  createdBy       User?         @relation("CourseCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  trainingPaths    TrainingPathCourse[]
+  videos           CourseVideo[]
+  extraAssignments ConsultantExtraCourse[]
+  auditLogs        AuditLog[]
+
+  @@index([status])
+}
+
+model Video {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  driveSourceUrl  String
+  driveFileId     String        @unique
+  embedUrl        String
+  thumbnailUrl    String?
+  durationSeconds Int?
+  status          ContentStatus @default(ACTIVE)
+  createdByUserId String?
+  createdBy       User?         @relation("VideoCreatedBy", fields: [createdByUserId], references: [id])
+  updatedByUserId String?
+  updatedBy       User?         @relation("VideoUpdatedBy", fields: [updatedByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  courses     CourseVideo[]
+  completions VideoCompletion[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+}
+
+model TrainingPathCourse {
+  id             String       @id @default(cuid())
+  trainingPathId String
+  trainingPath   TrainingPath @relation(fields: [trainingPathId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sortOrder      Int          @default(0)
+
+  @@unique([trainingPathId, courseId])
+  @@index([courseId])
+}
+
+model CourseVideo {
+  id        String @id @default(cuid())
+  courseId  String
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  videoId   String
+  video     Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  sortOrder Int    @default(0)
+
+  @@unique([courseId, videoId])
+  @@index([videoId])
+}
+
+model ConsultantTrainingAssignment {
+  id               String       @id @default(cuid())
+  consultantUserId String       @unique
+  consultant       User         @relation("ConsultantAssignment", fields: [consultantUserId], references: [id], onDelete: Cascade)
+  trainingPathId   String
+  trainingPath     TrainingPath @relation(fields: [trainingPathId], references: [id])
+  assignedByUserId String?
+  assignedBy       User?        @relation("AssignedByUser", fields: [assignedByUserId], references: [id])
+  assignedAt       DateTime     @default(now())
+
+  @@index([trainingPathId])
+}
+
+model ConsultantExtraCourse {
+  id               String   @id @default(cuid())
+  consultantUserId String
+  consultant       User     @relation("ConsultantExtraCourses", fields: [consultantUserId], references: [id], onDelete: Cascade)
+  courseId         String
+  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignedByUserId String?
+  assignedBy       User?    @relation("ExtraCourseAssignedBy", fields: [assignedByUserId], references: [id])
+  assignedAt       DateTime @default(now())
+
+  @@unique([consultantUserId, courseId])
+  @@index([courseId])
+}
+
+model VideoCompletion {
+  id               String   @id @default(cuid())
+  consultantUserId String
+  consultant       User     @relation("ConsultantCompletions", fields: [consultantUserId], references: [id], onDelete: Cascade)
+  videoId          String
+  video            Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  completedAt      DateTime @default(now())
+  markedByUserId   String?
+  markedBy         User?    @relation("MarkedByUser", fields: [markedByUserId], references: [id])
+
+  @@unique([consultantUserId, videoId])
+  @@index([videoId])
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  ipAddress        String?
+  userAgent        String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id               String          @id @default(cuid())
+  actorUserId      String?
+  actor            User?           @relation("AuditActor", fields: [actorUserId], references: [id])
+  actionType       AuditActionType
+  targetEntityType String
+  targetEntityId   String?
+  targetUserId     String?
+  targetUser       User?           @relation("AuditTargetUser", fields: [targetUserId], references: [id])
+  locationId       String?
+  location         Location?       @relation(fields: [locationId], references: [id])
+  trainingPathId   String?
+  trainingPath     TrainingPath?   @relation(fields: [trainingPathId], references: [id])
+  courseId         String?
+  course           Course?         @relation(fields: [courseId], references: [id])
+  videoId          String?
+  video            Video?          @relation(fields: [videoId], references: [id])
+  metadataJson     Json?
+  createdAt        DateTime        @default(now())
+
+  notifications Notification[]
+
+  @@index([actorUserId])
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+model Notification {
+  id               String           @id @default(cuid())
+  recipientUserId  String
+  recipient        User             @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  type             NotificationType
+  title            String
+  body             String
+  isRead           Boolean          @default(false)
+  sourceAuditLogId String?
+  sourceAuditLog   AuditLog?        @relation(fields: [sourceAuditLogId], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@index([recipientUserId, isRead])
+}

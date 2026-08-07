@@ -11,7 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "seed:ceo": "tsx scripts/seed-ceo.ts"
+    "seed:ceo": "node --env-file=.env.local -r tsx/cjs scripts/seed-ceo.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -22,6 +22,7 @@
     "prisma": "^7.9.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

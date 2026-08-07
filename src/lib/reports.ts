@@ -139,16 +139,22 @@ export async function getConsultantReportRows(
 ): Promise<ConsultantReportRow[]> {
   const scope = consultantScopeFilter(actor);
 
+  // Scope and filters are combined with AND, not merged into one object — a
+  // merge would let a same-named filter key (locationId, coordinatorId)
+  // silently overwrite the scope key via object spread, letting e.g. a
+  // Coordinator pass ?coordinatorId=<someone else> and see consultants
+  // outside their scope. AND means a filter can only narrow within scope,
+  // never widen it: if it contradicts scope, the query returns zero rows.
   const where = {
     role: "CONSULTANT" as const,
-    ...scope,
-    ...(filters.locationId ? { locationId: filters.locationId } : {}),
-    ...(filters.coordinatorId ? { coordinatorId: filters.coordinatorId } : {}),
-    ...(filters.trainingPathId
-      ? { trainingAssignment: { trainingPathId: filters.trainingPathId } }
-      : {}),
     ...(filters.status === "DELETED" ? { deletedAt: { not: null } } : { deletedAt: null }),
-    ...(filters.status && filters.status !== "DELETED" ? { status: filters.status } : {}),
+    AND: [
+      scope,
+      filters.locationId ? { locationId: filters.locationId } : {},
+      filters.coordinatorId ? { coordinatorId: filters.coordinatorId } : {},
+      filters.trainingPathId ? { trainingAssignment: { trainingPathId: filters.trainingPathId } } : {},
+      filters.status && filters.status !== "DELETED" ? { status: filters.status } : {},
+    ],
   };
 
   const consultants = await prisma.user.findMany({

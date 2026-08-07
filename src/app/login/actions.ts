@@ -4,7 +4,7 @@ import { z } from "zod";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/auth/password";
+import { verifyPasswordConstantTime } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 
 const loginSchema = z.object({
@@ -34,22 +34,15 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
   const userAgent = headerList.get("user-agent");
 
   // Generic error message regardless of which check fails, to avoid
-  // leaking whether a username exists.
+  // leaking whether a username exists. The password comparison always runs
+  // (against a dummy hash when there's no valid account) so response time
+  // doesn't leak that information either.
   const genericError = "Invalid username or password.";
+  const accountUsable = !!user && !user.deletedAt && user.status === "ACTIVE";
 
-  if (!user || user.deletedAt) {
-    await logFailedLogin(null, usernameLower, ipAddress);
-    return { error: genericError };
-  }
-
-  if (user.status !== "ACTIVE") {
-    await logFailedLogin(user.id, usernameLower, ipAddress);
-    return { error: genericError };
-  }
-
-  const passwordValid = await verifyPassword(user.passwordHash, password);
-  if (!passwordValid) {
-    await logFailedLogin(user.id, usernameLower, ipAddress);
+  const passwordValid = await verifyPasswordConstantTime(accountUsable ? user!.passwordHash : null, password);
+  if (!accountUsable || !passwordValid) {
+    await logFailedLogin(user?.id ?? null, usernameLower, ipAddress);
     return { error: genericError };
   }
 

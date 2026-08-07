@@ -41,3 +41,19 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
     return false;
   }
 }
+
+// Precomputed hash of an arbitrary fixed string, unrelated to any real
+// account. Used only to keep login response time roughly constant when the
+// username doesn't exist — otherwise skipping the argon2 comparison entirely
+// makes "no such user" distinguishable from "wrong password" by timing.
+const DUMMY_HASH_FOR_TIMING_SAFETY =
+  "$argon2id$v=19$m=19456,p=1,t=2$T34BSBC5y7BtVolJeZ5lEQ$uCA0lL80x4/rZa2JSV/SAkGBq2+1t5JId2UNvXBSyVw";
+
+/** Always runs a real argon2 comparison, even when no user was found, and always returns false in that case. */
+export async function verifyPasswordConstantTime(hash: string | null, password: string): Promise<boolean> {
+  if (!hash) {
+    await verifyPassword(DUMMY_HASH_FOR_TIMING_SAFETY, password);
+    return false;
+  }
+  return verifyPassword(hash, password);
+}

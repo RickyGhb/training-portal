@@ -23,10 +23,10 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Training Paths", href: "/catalog/training-paths", enabled: true },
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: false },
-        { label: "Exports", href: "/reports/exports", enabled: false },
-        { label: "Notifications", href: "/notifications", enabled: false },
-        { label: "Audit Logs", href: "/audit-logs", enabled: false },
+        { label: "Reports", href: "/reports", enabled: true },
+        { label: "Exports", href: "/reports/exports", enabled: true },
+        { label: "Notifications", href: "/notifications", enabled: true },
+        { label: "Audit Logs", href: "/audit-logs", enabled: true },
       ];
     case "MANAGER":
       return [
@@ -36,8 +36,8 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Consultants", href: "/users/consultants", enabled: true },
         { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: false },
-        { label: "Exports", href: "/reports/exports", enabled: false },
+        { label: "Reports", href: "/reports", enabled: true },
+        { label: "Exports", href: "/reports/exports", enabled: true },
       ];
     case "LOCATION_MANAGER":
       return [
@@ -46,14 +46,14 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Consultants", href: "/users/consultants", enabled: true },
         { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: false },
-        { label: "Exports", href: "/reports/exports", enabled: false },
+        { label: "Reports", href: "/reports", enabled: true },
+        { label: "Exports", href: "/reports/exports", enabled: true },
       ];
     case "COORDINATOR":
       return [
         dashboard,
         { label: "My Consultants", href: "/users/consultants", enabled: true },
-        { label: "Progress", href: "/consultants/progress", enabled: false },
+        { label: "Reports", href: "/reports", enabled: true },
       ];
     case "CONSULTANT":
       return [

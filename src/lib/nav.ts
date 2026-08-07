@@ -58,7 +58,7 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "CONSULTANT":
       return [
         { label: "My Dashboard", href: "/dashboard", enabled: true },
-        { label: "My Courses", href: "/my-courses", enabled: false },
+        { label: "My Courses", href: "/my-courses", enabled: true },
       ];
     default:
       return [dashboard];

@@ -51,7 +51,7 @@ export default async function ConsultantsPage() {
         <CreateConsultantForm coordinators={coordinators} />
       </div>
 
-      <UserTable rows={rows} showLocation showCoordinator />
+      <UserTable rows={rows} showLocation showCoordinator showLearningLink />
     </div>
   );
 }

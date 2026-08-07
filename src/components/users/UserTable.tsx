@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { StatusBadge } from "@/components/ui/Badge";
 import { UserRowActions } from "@/components/users/UserRowActions";
 
@@ -17,10 +18,13 @@ export function UserTable({
   rows,
   showLocation,
   showCoordinator,
+  showLearningLink,
 }: {
   rows: UserRow[];
   showLocation?: boolean;
   showCoordinator?: boolean;
+  /** Adds a link to the consultant's training-path/progress management page. */
+  showLearningLink?: boolean;
 }) {
   return (
     <table className="mt-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
@@ -52,12 +56,19 @@ export function UserTable({
               <StatusBadge status={u.status} />
             </td>
             <td className="px-4 py-2">
-              <UserRowActions
-                userId={u.id}
-                username={u.username}
-                fullName={`${u.firstName} ${u.lastName}`}
-                status={u.status}
-              />
+              <div className="flex items-center justify-end gap-3">
+                {showLearningLink && u.status !== "DELETED" && (
+                  <Link href={`/users/consultants/${u.id}`} className="text-sm font-medium text-slate-700 hover:text-slate-900">
+                    Training &amp; progress
+                  </Link>
+                )}
+                <UserRowActions
+                  userId={u.id}
+                  username={u.username}
+                  fullName={`${u.firstName} ${u.lastName}`}
+                  status={u.status}
+                />
+              </div>
             </td>
           </tr>
         ))}

@@ -33,17 +33,17 @@ export default async function ExportsPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Export Consultant Report</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Export Consultant Report</h1>
+      <p className="page-subtitle">
         Choose filters, then download. Every export is logged, and Manager exports notify the CEO.
       </p>
 
-      <form method="GET" action="/api/reports/export" className="mt-6 space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+      <form method="GET" action="/api/reports/export" className="mt-6 space-y-4 card">
         <div className="flex flex-wrap gap-3">
           {locations.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Location</label>
-              <select name="locationId" defaultValue={defaults.locationId} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+              <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Location</label>
+              <select name="locationId" defaultValue={defaults.locationId} className="w-44 field">
                 <option value="">All</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -55,8 +55,8 @@ export default async function ExportsPage({
           )}
           {coordinators.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Coordinator</label>
-              <select name="coordinatorId" defaultValue={defaults.coordinatorId} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+              <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Coordinator</label>
+              <select name="coordinatorId" defaultValue={defaults.coordinatorId} className="w-44 field">
                 <option value="">All</option>
                 {coordinators.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -67,8 +67,8 @@ export default async function ExportsPage({
             </div>
           )}
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Training path</label>
-            <select name="trainingPathId" defaultValue={defaults.trainingPathId} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Training path</label>
+            <select name="trainingPathId" defaultValue={defaults.trainingPathId} className="w-44 field">
               <option value="">All</option>
               {trainingPaths.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -78,8 +78,8 @@ export default async function ExportsPage({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Status</label>
-            <select name="status" defaultValue={defaults.status} className="w-40 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Status</label>
+            <select name="status" defaultValue={defaults.status} className="w-40 field">
               <option value="">Active + deactivated</option>
               <option value="ACTIVE">Active only</option>
               <option value="DEACTIVATED">Deactivated only</option>
@@ -89,10 +89,10 @@ export default async function ExportsPage({
         </div>
 
         <div className="flex gap-3">
-          <button type="submit" name="format" value="csv" className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+          <button type="submit" name="format" value="csv" className="btn-primary">
             Download CSV
           </button>
-          <button type="submit" name="format" value="xlsx" className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button type="submit" name="format" value="xlsx" className="rounded-md border border-[var(--color-border)] px-4 py-1.5 text-sm font-medium text-[var(--color-ink)] hover:bg-[var(--color-paper)]">
             Download XLSX
           </button>
         </div>

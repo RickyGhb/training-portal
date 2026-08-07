@@ -13,7 +13,7 @@ export function AddVideoForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   if (availableVideos.length === 0) {
-    return <p className="mt-4 text-sm text-slate-400">Every active video is already attached to this course.</p>;
+    return <p className="mt-4 text-sm text-[var(--color-ink-faint)]">Every active video is already attached to this course.</p>;
   }
 
   return (
@@ -27,8 +27,8 @@ export function AddVideoForm({
     >
       <input type="hidden" name="courseId" value={courseId} />
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-700">Add video</label>
-        <select name="videoId" required className="w-64 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Add video</label>
+        <select name="videoId" required className="w-64 field">
           <option value="">Select a video...</option>
           {availableVideos.map((v) => (
             <option key={v.id} value={v.id}>
@@ -39,7 +39,7 @@ export function AddVideoForm({
       </div>
       <button
         type="submit"
-        className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+        className="btn-primary"
       >
         Add
       </button>

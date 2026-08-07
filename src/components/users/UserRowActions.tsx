@@ -14,14 +14,16 @@ export function UserRowActions({
   username,
   fullName,
   status,
+  isSelf,
 }: {
   userId: string;
   username: string;
   fullName: string;
   status: "ACTIVE" | "DEACTIVATED" | "DELETED";
+  isSelf?: boolean;
 }) {
   if (status === "DELETED") {
-    return <span className="text-xs text-slate-400">Archived</span>;
+    return <span className="text-xs text-[var(--color-ink-faint)]">Archived</span>;
   }
 
   return (
@@ -34,12 +36,12 @@ export function UserRowActions({
         label="Edit username"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">New username</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">New username</label>
           <input
             name="newUsername"
             required
             defaultValue={username}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
       </FormModalButton>
@@ -53,45 +55,48 @@ export function UserRowActions({
         submitLabel="Reset"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">New password</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">New password</label>
           <input
             name="newPassword"
             type="text"
             required
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
       </FormModalButton>
 
-      {status === "ACTIVE" ? (
+      {!isSelf &&
+        (status === "ACTIVE" ? (
+          <ConfirmButton
+            action={setUserStatusAction}
+            hiddenFields={{ userId, nextStatus: "DEACTIVATED" }}
+            confirmTitle="Deactivate this account?"
+            confirmMessage={`${fullName} (${username}) will no longer be able to log in, and will be hidden from default lists until reactivated.`}
+            confirmLabel="Deactivate"
+            label="Deactivate"
+          />
+        ) : (
+          <ConfirmButton
+            action={setUserStatusAction}
+            hiddenFields={{ userId, nextStatus: "ACTIVE" }}
+            confirmTitle="Reactivate this account?"
+            confirmMessage={`${fullName} (${username}) will be able to log in again.`}
+            confirmLabel="Reactivate"
+            label="Reactivate"
+          />
+        ))}
+
+      {!isSelf && (
         <ConfirmButton
-          action={setUserStatusAction}
-          hiddenFields={{ userId, nextStatus: "DEACTIVATED" }}
-          confirmTitle="Deactivate this account?"
-          confirmMessage={`${fullName} (${username}) will no longer be able to log in, and will be hidden from default lists until reactivated.`}
-          confirmLabel="Deactivate"
-          label="Deactivate"
-        />
-      ) : (
-        <ConfirmButton
-          action={setUserStatusAction}
-          hiddenFields={{ userId, nextStatus: "ACTIVE" }}
-          confirmTitle="Reactivate this account?"
-          confirmMessage={`${fullName} (${username}) will be able to log in again.`}
-          confirmLabel="Reactivate"
-          label="Reactivate"
+          action={deleteUserAction}
+          hiddenFields={{ userId }}
+          confirmTitle="Delete this account?"
+          confirmMessage={`${fullName} (${username}) will be removed from active views. Their history is kept for audit and reporting.`}
+          confirmLabel="Delete"
+          label="Delete"
+          variant="danger"
         />
       )}
-
-      <ConfirmButton
-        action={deleteUserAction}
-        hiddenFields={{ userId }}
-        confirmTitle="Delete this account?"
-        confirmMessage={`${fullName} (${username}) will be removed from active views. Their history is kept for audit and reporting.`}
-        confirmLabel="Delete"
-        label="Delete"
-        variant="danger"
-      />
     </div>
   );
 }

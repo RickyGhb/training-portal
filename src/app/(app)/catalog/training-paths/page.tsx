@@ -20,8 +20,8 @@ export default async function TrainingPathsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Training Paths</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Training Paths</h1>
+      <p className="page-subtitle">
         A training path is an ordered set of courses assigned to consultants as their primary curriculum.
       </p>
 
@@ -29,8 +29,8 @@ export default async function TrainingPathsPage() {
         <TrainingPathForm />
       </div>
 
-      <table className="mt-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+      <table className="mt-6 table-shell">
+        <thead className="">
           <tr>
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Description</th>
@@ -38,11 +38,11 @@ export default async function TrainingPathsPage() {
             <th className="px-4 py-2"></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="">
           {paths.map((path) => (
             <tr key={path.id}>
-              <td className="px-4 py-2 font-medium text-slate-900">{path.name}</td>
-              <td className="px-4 py-2 max-w-sm truncate text-slate-600">{path.description}</td>
+              <td className="px-4 py-2 font-medium text-[var(--color-ink)]">{path.name}</td>
+              <td className="px-4 py-2 max-w-sm truncate text-[var(--color-ink-soft)]">{path.description}</td>
               <td className="px-4 py-2">
                 <StatusBadge status={path.status} />
               </td>
@@ -60,7 +60,7 @@ export default async function TrainingPathsPage() {
           ))}
           {paths.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={4} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                 No training paths yet.
               </td>
             </tr>

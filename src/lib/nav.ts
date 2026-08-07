@@ -14,7 +14,9 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "CEO":
       return [
         dashboard,
+        { label: "Create User", href: "/users/new", enabled: true },
         { label: "Locations", href: "/locations", enabled: true },
+        { label: "CEOs", href: "/users/ceos", enabled: true },
         { label: "Managers", href: "/users/managers", enabled: true },
         { label: "Location Managers", href: "/users/location-managers", enabled: true },
         { label: "Coordinators", href: "/users/coordinators", enabled: true },
@@ -31,6 +33,7 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "MANAGER":
       return [
         dashboard,
+        { label: "Create User", href: "/users/new", enabled: true },
         { label: "Location Managers", href: "/users/location-managers", enabled: true },
         { label: "Coordinators", href: "/users/coordinators", enabled: true },
         { label: "Consultants", href: "/users/consultants", enabled: true },
@@ -42,6 +45,7 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "LOCATION_MANAGER":
       return [
         dashboard,
+        { label: "Create User", href: "/users/new", enabled: true },
         { label: "Coordinators", href: "/users/coordinators", enabled: true },
         { label: "Consultants", href: "/users/consultants", enabled: true },
         { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
@@ -52,6 +56,7 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "COORDINATOR":
       return [
         dashboard,
+        { label: "Create User", href: "/users/new", enabled: true },
         { label: "My Consultants", href: "/users/consultants", enabled: true },
         { label: "Reports", href: "/reports", enabled: true },
       ];

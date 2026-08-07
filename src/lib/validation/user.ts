@@ -8,10 +8,15 @@ import { z } from "zod";
  * happily accepts "" as a valid non-empty value, so blank optional fields
  * (locationId, phone, etc.) were silently passing through as "" instead of
  * undefined, which downstream broke `foo ?? null` fallbacks and could hit a
- * Prisma foreign-key error on an empty-string id.
+ * Prisma foreign-key error on an empty-string id. Also normalizes `null`
+ * (FormData.get returns null, not undefined, for a field that isn't
+ * present at all — e.g. a conditionally-rendered locationId input).
  */
 export function optionalTrimmedString<T extends z.ZodTypeAny>(schema: T) {
-  return z.preprocess((val) => (typeof val === "string" && val.trim() === "" ? undefined : val), schema.optional());
+  return z.preprocess(
+    (val) => (val == null || (typeof val === "string" && val.trim() === "") ? undefined : val),
+    schema.optional()
+  );
 }
 
 /** Shared username/password rules used across create + reset flows. */

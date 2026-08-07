@@ -24,21 +24,21 @@ export function CourseRowActions({
 }) {
   return (
     <div className="flex items-center justify-end gap-3">
-      <Link href={`/catalog/courses/${id}`} className="text-sm font-medium text-slate-700 hover:text-slate-900">
+      <Link href={`/catalog/courses/${id}`} className="link-action">
         Manage videos ({videoCount})
       </Link>
 
       <FormModalButton action={updateCourseAction} hiddenFields={{ courseId: id }} title="Edit course" label="Edit">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Name</label>
-          <input name="name" required defaultValue={name} className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Name</label>
+          <input name="name" required defaultValue={name} className="w-full field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Description</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
           <input
             name="description"
             defaultValue={description ?? ""}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
       </FormModalButton>

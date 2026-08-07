@@ -23,8 +23,8 @@ export default async function BulkReassignPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Bulk reassign consultants</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Bulk reassign consultants</h1>
+      <p className="page-subtitle">
         Select consultants and move them all to a different coordinator at once.
       </p>
 

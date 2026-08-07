@@ -18,12 +18,12 @@ export function ExtraCourses({
   return (
     <div>
       {extraCourses.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-400">No extra courses assigned.</p>
+        <p className="mt-2 text-sm text-[var(--color-ink-faint)]">No extra courses assigned.</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+        <ul className="mt-2  rounded-lg border border-[var(--color-border)] bg-white">
           {extraCourses.map((c) => (
             <li key={c.id} className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="font-medium text-slate-900">{c.name}</span>
+              <span className="font-medium text-[var(--color-ink)]">{c.name}</span>
               <ConfirmButton
                 action={removeExtraCourseAction}
                 hiddenFields={{ consultantUserId, courseId: c.id }}
@@ -49,8 +49,8 @@ export function ExtraCourses({
         >
           <input type="hidden" name="consultantUserId" value={consultantUserId} />
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Add extra course</label>
-            <select name="courseId" required className="w-64 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Add extra course</label>
+            <select name="courseId" required className="w-64 field">
               <option value="">Select a course...</option>
               {availableCourses.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -59,7 +59,7 @@ export function ExtraCourses({
               ))}
             </select>
           </div>
-          <button type="submit" className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+          <button type="submit" className="btn-primary">
             Add
           </button>
         </form>

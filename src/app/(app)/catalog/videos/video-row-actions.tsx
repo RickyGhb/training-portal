@@ -25,33 +25,33 @@ export function VideoRowActions({
     <div className="flex items-center justify-end gap-3">
       <FormModalButton action={updateVideoAction} hiddenFields={{ videoId: id }} title="Edit video" label="Edit">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Title</label>
-          <input name="title" required defaultValue={title} className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Title</label>
+          <input name="title" required defaultValue={title} className="w-full field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Description</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
           <input
             name="description"
             defaultValue={description ?? ""}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Duration (seconds)</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Duration (seconds)</label>
           <input
             name="durationSeconds"
             type="number"
             min={1}
             defaultValue={durationSeconds ?? ""}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Thumbnail URL</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Thumbnail URL</label>
           <input
             name="thumbnailUrl"
             defaultValue={thumbnailUrl ?? ""}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
           />
         </div>
       </FormModalButton>

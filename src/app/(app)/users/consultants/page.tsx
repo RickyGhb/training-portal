@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { userVisibilityFilter } from "@/lib/auth/rbac";
-import { CreateConsultantForm } from "@/components/users/CreateConsultantForm";
 import { UserTable, type UserRow } from "@/components/users/UserTable";
 
 export default async function ConsultantsPage() {
@@ -13,20 +12,11 @@ export default async function ConsultantsPage() {
   const consultantFilter =
     actor.role === "COORDINATOR" ? { coordinatorId: actor.id } : userVisibilityFilter(actor);
 
-  const [consultants, coordinators] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "CONSULTANT", deletedAt: null, ...consultantFilter },
-      orderBy: { createdAt: "desc" },
-      include: { location: true, coordinator: true },
-    }),
-    prisma.user.findMany({
-      where:
-        actor.role === "COORDINATOR"
-          ? { id: actor.id }
-          : { role: "COORDINATOR", status: "ACTIVE", deletedAt: null, ...userVisibilityFilter(actor) },
-      orderBy: { firstName: "asc" },
-    }),
-  ]);
+  const consultants = await prisma.user.findMany({
+    where: { role: "CONSULTANT", deletedAt: null, ...consultantFilter },
+    orderBy: { createdAt: "desc" },
+    include: { location: true, coordinator: true },
+  });
 
   const rows: UserRow[] = consultants.map((u) => ({
     id: u.id,
@@ -42,16 +32,12 @@ export default async function ConsultantsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Consultants</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Consultants</h1>
+      <p className="page-subtitle">
         End learners. Each consultant is owned by exactly one coordinator.
       </p>
 
-      <div className="mt-6">
-        <CreateConsultantForm coordinators={coordinators} />
-      </div>
-
-      <UserTable rows={rows} showLocation showCoordinator showLearningLink />
+      <UserTable rows={rows} showLocation showCoordinator showLearningLink currentUserId={actor.id} />
     </div>
   );
 }

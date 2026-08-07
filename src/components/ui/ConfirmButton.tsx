@@ -32,26 +32,25 @@ export function ConfirmButton({
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const buttonClasses =
-    variant === "danger"
-      ? "text-red-600 hover:text-red-700"
-      : "text-slate-700 hover:text-slate-900";
+  const buttonClasses = variant === "danger" ? "link-danger" : "link-action";
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={className ?? `text-sm font-medium ${buttonClasses}`}
+        className={className ?? buttonClasses}
       >
         {label}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="text-base font-semibold text-slate-900">{confirmTitle}</h2>
-            <p className="mt-2 text-sm text-slate-600">{confirmMessage}</p>
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h2 className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--color-ink)]">
+              {confirmTitle}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{confirmMessage}</p>
             <form
               ref={formRef}
               action={(formData) => {
@@ -66,20 +65,17 @@ export function ConfirmButton({
                   <input key={key} type="hidden" name={key} value={value} />
                 ))}
               <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  disabled={pending}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setOpen(false)} disabled={pending} className="btn-secondary">
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={pending}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 ${
-                    variant === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-slate-900 hover:bg-slate-800"
-                  }`}
+                  className={
+                    variant === "danger"
+                      ? "inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-danger)] px-4 py-1.5 text-sm font-semibold text-[#fff9f0] transition-colors hover:bg-[#7d2a21] disabled:opacity-50"
+                      : "btn-primary"
+                  }
                 >
                   {pending ? "Working..." : confirmLabel}
                 </button>

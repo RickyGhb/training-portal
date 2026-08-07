@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { CreateStaffUserForm } from "@/components/users/CreateStaffUserForm";
 import { UserTable, type UserRow } from "@/components/users/UserTable";
 
 export default async function ManagersPage() {
@@ -26,14 +25,10 @@ export default async function ManagersPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Managers</h1>
-      <p className="mt-1 text-sm text-slate-500">Global operational role below CEO.</p>
+      <h1 className="page-title">Managers</h1>
+      <p className="page-subtitle">Global operational role below CEO.</p>
 
-      <div className="mt-6">
-        <CreateStaffUserForm role="MANAGER" locationMode="none" locations={[]} />
-      </div>
-
-      <UserTable rows={rows} />
+      <UserTable rows={rows} currentUserId={actor.id} />
     </div>
   );
 }

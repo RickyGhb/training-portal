@@ -52,37 +52,30 @@ export function FormModalButton({
           setError(undefined);
           setOpen(true);
         }}
-        className={className ?? "text-sm font-medium text-slate-700 hover:text-slate-900"}
+        className={className ?? "link-action"}
       >
         {label}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-            {description && <p className="mt-1 text-sm text-slate-600">{description}</p>}
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h2 className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--color-ink)]">
+              {title}
+            </h2>
+            {description && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{description}</p>}
             <form action={handleSubmit} className="mt-4 space-y-3">
               {hiddenFields &&
                 Object.entries(hiddenFields).map(([key, value]) => (
                   <input key={key} type="hidden" name={key} value={value} />
                 ))}
               {children}
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  disabled={pending}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setOpen(false)} disabled={pending} className="btn-secondary">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-                >
+                <button type="submit" disabled={pending} className="btn-primary">
                   {pending ? "Saving..." : submitLabel}
                 </button>
               </div>

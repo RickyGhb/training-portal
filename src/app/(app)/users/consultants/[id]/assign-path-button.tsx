@@ -26,8 +26,8 @@ export function AssignPathButton({
       label={currentPathName ? "Change" : "Assign a training path"}
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-700">Training path</label>
-        <select name="trainingPathId" required className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Training path</label>
+        <select name="trainingPathId" required className="w-full field">
           <option value="">Select...</option>
           {paths.map((p) => (
             <option key={p.id} value={p.id}>

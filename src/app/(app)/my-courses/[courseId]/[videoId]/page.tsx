@@ -23,28 +23,28 @@ export default async function VideoPlayerPage({
 
   return (
     <div>
-      <Link href={`/my-courses/${courseId}`} className="text-sm text-slate-500 hover:text-slate-700">
+      <Link href={`/my-courses/${courseId}`} className="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         ← {detail.course.name}
       </Link>
 
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">{detail.video.title}</h1>
-      {detail.video.description && <p className="mt-1 text-sm text-slate-500">{detail.video.description}</p>}
+      <h1 className="mt-2 page-title">{detail.video.title}</h1>
+      {detail.video.description && <p className="page-subtitle">{detail.video.description}</p>}
 
-      <div className="mt-4 aspect-video w-full overflow-hidden rounded-lg border border-slate-200 bg-black">
+      <div className="mt-4 aspect-video w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black">
         <iframe src={detail.video.embedUrl} className="h-full w-full" allow="autoplay" allowFullScreen />
       </div>
 
       <div className="mt-4 flex items-center justify-between">
         <div>
           {prev && (
-            <Link href={`/my-courses/${courseId}/${prev.id}`} className="text-sm font-medium text-slate-700 hover:text-slate-900">
+            <Link href={`/my-courses/${courseId}/${prev.id}`} className="link-action">
               ← Previous
             </Link>
           )}
         </div>
 
         {detail.video.completed ? (
-          <span className="rounded-full bg-green-100 px-3 py-1.5 text-sm font-medium text-green-800">
+          <span className="rounded-full bg-[var(--color-success-soft)] px-3 py-1.5 text-sm font-medium text-[var(--color-success)]">
             ✓ Completed{detail.video.completedAt && ` on ${detail.video.completedAt.toLocaleDateString()}`}
           </span>
         ) : (
@@ -53,7 +53,7 @@ export default async function VideoPlayerPage({
             <input type="hidden" name="courseId" value={courseId} />
             <button
               type="submit"
-              className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              className="btn-primary"
             >
               Mark as Completed
             </button>
@@ -62,7 +62,7 @@ export default async function VideoPlayerPage({
 
         <div>
           {next && (
-            <Link href={`/my-courses/${courseId}/${next.id}`} className="text-sm font-medium text-slate-700 hover:text-slate-900">
+            <Link href={`/my-courses/${courseId}/${next.id}`} className="link-action">
               Next →
             </Link>
           )}

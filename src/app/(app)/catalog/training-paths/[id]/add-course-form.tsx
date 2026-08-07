@@ -13,7 +13,7 @@ export function AddCourseForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   if (availableCourses.length === 0) {
-    return <p className="mt-4 text-sm text-slate-400">Every active course is already attached to this path.</p>;
+    return <p className="mt-4 text-sm text-[var(--color-ink-faint)]">Every active course is already attached to this path.</p>;
   }
 
   return (
@@ -27,8 +27,8 @@ export function AddCourseForm({
     >
       <input type="hidden" name="trainingPathId" value={trainingPathId} />
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-700">Add course</label>
-        <select name="courseId" required className="w-64 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Add course</label>
+        <select name="courseId" required className="w-64 field">
           <option value="">Select a course...</option>
           {availableCourses.map((c) => (
             <option key={c.id} value={c.id}>
@@ -39,7 +39,7 @@ export function AddCourseForm({
       </div>
       <button
         type="submit"
-        className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+        className="btn-primary"
       >
         Add
       </button>

@@ -7,63 +7,63 @@ export function VideoForm() {
   const [state, formAction, pending] = useActionState(createVideoAction, {});
 
   return (
-    <form action={formAction} className="rounded-lg border border-slate-200 bg-white p-4">
+    <form action={formAction} className="card">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Title</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Title</label>
           <input
             name="title"
             required
-            className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-56 field"
             placeholder="Intro to the CRM"
           />
         </div>
         <div className="flex-1 min-w-[20rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-700">Google Drive share link</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Google Drive share link</label>
           <input
             name="driveUrl"
             required
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
             placeholder="https://drive.google.com/file/d/.../view"
           />
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[16rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-700">Description</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
           <input
             name="description"
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-full field"
             placeholder="Optional"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Duration (seconds)</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Duration (seconds)</label>
           <input
             name="durationSeconds"
             type="number"
             min={1}
-            className="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-32 field"
             placeholder="Optional"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Thumbnail URL</label>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Thumbnail URL</label>
           <input
             name="thumbnailUrl"
-            className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="w-56 field"
             placeholder="Optional"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="btn-primary disabled:opacity-50"
         >
           {pending ? "Adding..." : "Add video"}
         </button>
       </div>
-      {state.error && <p className="mt-2 text-sm text-red-600">{state.error}</p>}
+      {state.error && <p className="mt-2 text-sm text-[var(--color-danger)]">{state.error}</p>}
       {state.success && <p className="mt-2 text-sm text-green-700">{state.success}</p>}
     </form>
   );

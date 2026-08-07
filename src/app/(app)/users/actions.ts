@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { Role } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, type SessionUser } from "@/lib/auth/session";
+import { getCurrentUser, clearSessionCookie, type SessionUser } from "@/lib/auth/session";
 import { canCreateRole, canManageUser, canBulkReassign, type ScopeSubject } from "@/lib/auth/rbac";
-import { hashPassword, validatePasswordStrength } from "@/lib/auth/password";
+import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/auth/password";
 import {
   createStaffUserSchema,
   createConsultantSchema,
@@ -276,6 +277,8 @@ export async function setUserStatusAction(formData: FormData): Promise<void> {
   const userId = String(formData.get("userId"));
   const nextStatus = String(formData.get("nextStatus")) as "ACTIVE" | "DEACTIVATED";
 
+  if (userId === actor.id) return; // can't deactivate your own account
+
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target || target.deletedAt) return;
   if (!canManageUser(actor, target as ScopeSubject)) return;
@@ -304,6 +307,8 @@ export async function setUserStatusAction(formData: FormData): Promise<void> {
 export async function deleteUserAction(formData: FormData): Promise<void> {
   const actor = await requireActor();
   const userId = String(formData.get("userId"));
+
+  if (userId === actor.id) return; // can't delete your own account
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target || target.deletedAt) return;
@@ -339,6 +344,44 @@ export async function deleteUserAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/users");
+}
+
+/** Self-service password change: the actor changes their own password, verifying the current one first. */
+export async function changeOwnPasswordAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  const currentPassword = String(formData.get("currentPassword"));
+  const newPassword = String(formData.get("newPassword"));
+
+  const self = await prisma.user.findUnique({ where: { id: actor.id } });
+  if (!self || self.deletedAt) return { error: "Account not found." };
+
+  const currentValid = await verifyPassword(self.passwordHash, currentPassword);
+  if (!currentValid) return { error: "Current password is incorrect." };
+
+  const strength = validatePasswordStrength(newPassword);
+  if (!strength.valid) return { error: strength.reason };
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.user.update({ where: { id: actor.id }, data: { passwordHash } });
+
+  // Sign out everywhere, including this session — re-authenticate with the new password.
+  await prisma.session.updateMany({
+    where: { userId: actor.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  await clearSessionCookie();
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "PASSWORD_RESET",
+    targetEntityType: "User",
+    targetEntityId: actor.id,
+    targetUserId: actor.id,
+    locationId: self.locationId,
+    metadata: { selfService: true },
+  });
+
+  redirect("/login");
 }
 
 export async function bulkReassignAction(_prevState: FormState, formData: FormData): Promise<FormState> {

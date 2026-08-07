@@ -32,7 +32,7 @@ export type ScopeSubject = {
 
 /** Which roles each role is allowed to CREATE. */
 const CREATABLE_ROLES: Record<Role, Role[]> = {
-  CEO: ["MANAGER", "LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"],
+  CEO: ["CEO", "MANAGER", "LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"],
   MANAGER: ["LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"],
   LOCATION_MANAGER: ["COORDINATOR", "CONSULTANT"],
   COORDINATOR: ["CONSULTANT"],
@@ -41,6 +41,11 @@ const CREATABLE_ROLES: Record<Role, Role[]> = {
 
 export function canCreateRole(actorRole: Role, targetRole: Role): boolean {
   return CREATABLE_ROLES[actorRole].includes(targetRole);
+}
+
+/** Which roles this actor is allowed to create, for populating a role picker. */
+export function creatableRoles(actorRole: Role): Role[] {
+  return CREATABLE_ROLES[actorRole];
 }
 
 /**

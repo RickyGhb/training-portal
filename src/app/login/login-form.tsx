@@ -11,20 +11,13 @@ export function LoginForm() {
   return (
     <form action={formAction} className="space-y-4">
       <div>
-        <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="username" className="field-label">
           Username
         </label>
-        <input
-          id="username"
-          name="username"
-          type="text"
-          autoComplete="username"
-          required
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
+        <input id="username" name="username" type="text" autoComplete="username" required className="field" />
       </div>
       <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="password" className="field-label">
           Password
         </label>
         <input
@@ -33,15 +26,11 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="field"
         />
       </div>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-      >
+      {state.error && <p className="text-sm text-[var(--color-danger)]">{state.error}</p>}
+      <button type="submit" disabled={pending} className="btn-primary w-full">
         {pending ? "Signing in..." : "Sign in"}
       </button>
     </form>

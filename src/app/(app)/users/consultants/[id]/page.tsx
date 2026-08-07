@@ -44,17 +44,17 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
 
   return (
     <div>
-      <Link href="/users/consultants" className="text-sm text-slate-500 hover:text-slate-700">
+      <Link href="/users/consultants" className="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         ← Consultants
       </Link>
 
       <div className="mt-2 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">
+        <h1 className="page-title">
           {target.firstName} {target.lastName}
         </h1>
         <StatusBadge status={target.status} />
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="page-subtitle">
         @{target.username}
         {target.email ? ` · ${target.email}` : ""}
         {target.phone ? ` · ${target.phone}` : ""}
@@ -62,60 +62,60 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         {target.coordinator ? ` · Coordinator: ${target.coordinator.firstName} ${target.coordinator.lastName}` : ""}
       </p>
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Progress</h2>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Progress</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-2xl font-semibold text-slate-900">{progress.completionPercentage}%</div>
-          <div className="text-xs text-slate-500">Complete</div>
+        <div className="card">
+          <div className="stat-number">{progress.completionPercentage}%</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">Complete</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-2xl font-semibold text-slate-900">{progress.completedVideos}</div>
-          <div className="text-xs text-slate-500">Videos completed</div>
+        <div className="card">
+          <div className="stat-number">{progress.completedVideos}</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">Videos completed</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-2xl font-semibold text-slate-900">{progress.pendingVideos}</div>
-          <div className="text-xs text-slate-500">Videos pending</div>
+        <div className="card">
+          <div className="stat-number">{progress.pendingVideos}</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">Videos pending</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-2xl font-semibold text-slate-900">{progress.totalCourses}</div>
-          <div className="text-xs text-slate-500">Assigned courses</div>
+        <div className="card">
+          <div className="stat-number">{progress.totalCourses}</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">Assigned courses</div>
         </div>
       </div>
       {progress.lastCompletedVideoTitle && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-[var(--color-ink-soft)]">
           Last completed: {progress.lastCompletedVideoTitle}
           {progress.lastCompletedAt && ` on ${progress.lastCompletedAt.toLocaleDateString()}`}
         </p>
       )}
 
       <div className="mt-8 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Primary training path</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Primary training path</h2>
         <AssignPathButton
           consultantUserId={target.id}
           currentPathName={assignment?.trainingPath.name ?? null}
           paths={trainingPaths}
         />
       </div>
-      <p className="mt-2 text-sm text-slate-700">
-        {assignment ? assignment.trainingPath.name : <span className="text-slate-400">Not assigned yet.</span>}
+      <p className="mt-2 text-sm text-[var(--color-ink)]">
+        {assignment ? assignment.trainingPath.name : <span className="text-[var(--color-ink-faint)]">Not assigned yet.</span>}
       </p>
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Extra courses</h2>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Extra courses</h2>
       <ExtraCourses
         consultantUserId={target.id}
         extraCourses={extraCourses.map((c) => ({ id: c.id, name: c.name }))}
         availableCourses={availableForExtra}
       />
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Resolved courses</h2>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Resolved courses</h2>
       {resolvedCourses.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-400">No content assigned yet.</p>
+        <p className="mt-2 text-sm text-[var(--color-ink-faint)]">No content assigned yet.</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+        <ul className="mt-2  rounded-lg border border-[var(--color-border)] bg-white">
           {resolvedCourses.map((c) => (
             <li key={c.id} className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="font-medium text-slate-900">{c.name}</span>
-              <span className="text-xs text-slate-500">
+              <span className="font-medium text-[var(--color-ink)]">{c.name}</span>
+              <span className="text-xs text-[var(--color-ink-soft)]">
                 {sourceLabel[c.source]} · {c.completedVideoCount}/{c.videoCount} videos
               </span>
             </li>

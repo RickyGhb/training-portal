@@ -25,8 +25,8 @@ export default async function VideosPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Videos</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Videos</h1>
+      <p className="page-subtitle">
         Videos are embedded from Google Drive and can be reused across multiple courses.
       </p>
 
@@ -34,8 +34,8 @@ export default async function VideosPage() {
         <VideoForm />
       </div>
 
-      <table className="mt-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+      <table className="mt-6 table-shell">
+        <thead className="">
           <tr>
             <th className="px-4 py-2">Title</th>
             <th className="px-4 py-2">Duration</th>
@@ -45,12 +45,12 @@ export default async function VideosPage() {
             <th className="px-4 py-2"></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="">
           {videos.map((video) => (
             <tr key={video.id}>
-              <td className="px-4 py-2 font-medium text-slate-900">{video.title}</td>
-              <td className="px-4 py-2 text-slate-600">{formatDuration(video.durationSeconds)}</td>
-              <td className="px-4 py-2 text-slate-600">{video._count.courses} course(s)</td>
+              <td className="px-4 py-2 font-medium text-[var(--color-ink)]">{video.title}</td>
+              <td className="px-4 py-2 text-[var(--color-ink-soft)]">{formatDuration(video.durationSeconds)}</td>
+              <td className="px-4 py-2 text-[var(--color-ink-soft)]">{video._count.courses} course(s)</td>
               <td className="px-4 py-2">
                 <a
                   href={video.embedUrl}
@@ -79,7 +79,7 @@ export default async function VideosPage() {
           ))}
           {videos.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={6} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                 No videos yet.
               </td>
             </tr>

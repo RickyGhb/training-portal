@@ -7,25 +7,25 @@ import { StatusBadge } from "@/components/ui/Badge";
 
 function Tile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-2xl font-semibold text-slate-900">{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="card">
+      <div className="stat-number">{value}</div>
+      <div className="text-xs text-[var(--color-ink-soft)]">{label}</div>
     </div>
   );
 }
 
 function BreakdownList({ title, rows, suffix }: { title: string; rows: { name: string; count?: number; avgCompletionPercentage?: number }[]; suffix: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+    <div className="card">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">{title}</h3>
       {rows.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-400">No data.</p>
+        <p className="mt-2 text-sm text-[var(--color-ink-faint)]">No data.</p>
       ) : (
         <ul className="mt-2 space-y-1 text-sm">
           {rows.map((r) => (
-            <li key={r.name} className="flex justify-between text-slate-700">
+            <li key={r.name} className="flex justify-between text-[var(--color-ink)]">
               <span>{r.name}</span>
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-[var(--color-ink)]">
                 {r.count ?? r.avgCompletionPercentage}
                 {suffix}
               </span>
@@ -76,8 +76,8 @@ export default async function ReportsPage({
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="page-title">Reports</h1>
+          <p className="page-subtitle">
             {actor.role === "COORDINATOR" ? "Your consultants only." : "Scoped to what you can manage."}
           </p>
         </div>
@@ -86,7 +86,7 @@ export default async function ReportsPage({
             href={`/reports/exports?${new URLSearchParams(
               Object.entries(filters).filter(([, v]) => v) as [string, string][]
             ).toString()}`}
-            className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="btn-primary"
           >
             Export
           </a>
@@ -108,11 +108,11 @@ export default async function ReportsPage({
         <BreakdownList title="Avg. completion by coordinator" rows={aggregates.completionByCoordinator} suffix="%" />
       </div>
 
-      <form method="GET" className="mt-8 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <form method="GET" className="mt-8 flex flex-wrap items-end gap-3 card">
         {locations.length > 0 && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Location</label>
-            <select name="locationId" defaultValue={filters.locationId ?? ""} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Location</label>
+            <select name="locationId" defaultValue={filters.locationId ?? ""} className="w-44 field">
               <option value="">All</option>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -124,8 +124,8 @@ export default async function ReportsPage({
         )}
         {coordinators.length > 0 && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Coordinator</label>
-            <select name="coordinatorId" defaultValue={filters.coordinatorId ?? ""} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Coordinator</label>
+            <select name="coordinatorId" defaultValue={filters.coordinatorId ?? ""} className="w-44 field">
               <option value="">All</option>
               {coordinators.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -136,8 +136,8 @@ export default async function ReportsPage({
           </div>
         )}
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Training path</label>
-          <select name="trainingPathId" defaultValue={filters.trainingPathId ?? ""} className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Training path</label>
+          <select name="trainingPathId" defaultValue={filters.trainingPathId ?? ""} className="w-44 field">
             <option value="">All</option>
             {trainingPaths.map((p) => (
               <option key={p.id} value={p.id}>
@@ -147,22 +147,22 @@ export default async function ReportsPage({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Status</label>
-          <select name="status" defaultValue={filters.status ?? ""} className="w-40 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Status</label>
+          <select name="status" defaultValue={filters.status ?? ""} className="w-40 field">
             <option value="">Active + deactivated</option>
             <option value="ACTIVE">Active only</option>
             <option value="DEACTIVATED">Deactivated only</option>
             <option value="DELETED">Deleted (archived)</option>
           </select>
         </div>
-        <button type="submit" className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+        <button type="submit" className="btn-primary">
           Apply filters
         </button>
       </form>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--color-border)] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+          <thead className="">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Location</th>
@@ -174,20 +174,20 @@ export default async function ReportsPage({
               <th className="px-4 py-2">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="">
             {rows.map((r) => (
               <tr key={r.id}>
-                <td className="px-4 py-2 font-medium text-slate-900">
+                <td className="px-4 py-2 font-medium text-[var(--color-ink)]">
                   {r.firstName} {r.lastName}
                 </td>
-                <td className="px-4 py-2 text-slate-600">{r.locationName ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-600">{r.coordinatorName ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-600">{r.primaryTrainingPathName ?? "—"}</td>
-                <td className="px-4 py-2 text-slate-600">{r.extraCourseNames.join(", ") || "—"}</td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{r.locationName ?? "—"}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{r.coordinatorName ?? "—"}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{r.primaryTrainingPathName ?? "—"}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{r.extraCourseNames.join(", ") || "—"}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">
                   {r.completedVideos}/{r.totalVideos} ({r.completionPercentage}%)
                 </td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">
                   {r.lastCompletedItem ? `${r.lastCompletedItem}${r.lastActivityDate ? ` · ${r.lastActivityDate.toLocaleDateString()}` : ""}` : "—"}
                 </td>
                 <td className="px-4 py-2">
@@ -197,7 +197,7 @@ export default async function ReportsPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                   No consultants match these filters.
                 </td>
               </tr>

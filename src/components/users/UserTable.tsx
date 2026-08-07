@@ -19,46 +19,49 @@ export function UserTable({
   showLocation,
   showCoordinator,
   showLearningLink,
+  currentUserId,
 }: {
   rows: UserRow[];
   showLocation?: boolean;
   showCoordinator?: boolean;
   /** Adds a link to the consultant's training-path/progress management page. */
   showLearningLink?: boolean;
+  /** The logged-in actor's own id — hides deactivate/delete on their own row. */
+  currentUserId?: string;
 }) {
   return (
-    <table className="mt-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-      <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+    <table className="table-shell mt-6">
+      <thead>
         <tr>
-          <th className="px-4 py-2">Name</th>
-          <th className="px-4 py-2">Username</th>
-          <th className="px-4 py-2">Contact</th>
-          {showLocation && <th className="px-4 py-2">Location</th>}
-          {showCoordinator && <th className="px-4 py-2">Coordinator</th>}
-          <th className="px-4 py-2">Status</th>
-          <th className="px-4 py-2"></th>
+          <th>Name</th>
+          <th>Username</th>
+          <th>Contact</th>
+          {showLocation && <th>Location</th>}
+          {showCoordinator && <th>Coordinator</th>}
+          <th>Status</th>
+          <th></th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-slate-100">
+      <tbody>
         {rows.map((u) => (
           <tr key={u.id}>
-            <td className="px-4 py-2 font-medium text-slate-900">
+            <td className="font-medium text-[var(--color-ink)]">
               {u.firstName} {u.lastName}
             </td>
-            <td className="px-4 py-2 text-slate-600">{u.username}</td>
-            <td className="px-4 py-2 text-slate-600">
+            <td className="text-[var(--color-ink-soft)]">{u.username}</td>
+            <td className="text-[var(--color-ink-soft)]">
               {u.email && <div>{u.email}</div>}
               {u.phone && <div>{u.phone}</div>}
             </td>
-            {showLocation && <td className="px-4 py-2 text-slate-600">{u.locationName ?? "—"}</td>}
-            {showCoordinator && <td className="px-4 py-2 text-slate-600">{u.coordinatorName ?? "—"}</td>}
-            <td className="px-4 py-2">
+            {showLocation && <td className="text-[var(--color-ink-soft)]">{u.locationName ?? "—"}</td>}
+            {showCoordinator && <td className="text-[var(--color-ink-soft)]">{u.coordinatorName ?? "—"}</td>}
+            <td>
               <StatusBadge status={u.status} />
             </td>
-            <td className="px-4 py-2">
+            <td>
               <div className="flex items-center justify-end gap-3">
                 {showLearningLink && u.status !== "DELETED" && (
-                  <Link href={`/users/consultants/${u.id}`} className="text-sm font-medium text-slate-700 hover:text-slate-900">
+                  <Link href={`/users/consultants/${u.id}`} className="link-action">
                     Training &amp; progress
                   </Link>
                 )}
@@ -67,6 +70,7 @@ export function UserTable({
                   username={u.username}
                   fullName={`${u.firstName} ${u.lastName}`}
                   status={u.status}
+                  isSelf={u.id === currentUserId}
                 />
               </div>
             </td>
@@ -74,7 +78,7 @@ export function UserTable({
         ))}
         {rows.length === 0 && (
           <tr>
-            <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+            <td colSpan={7} className="py-6 text-center text-[var(--color-ink-faint)]">
               No accounts yet.
             </td>
           </tr>

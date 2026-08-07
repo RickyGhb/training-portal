@@ -11,17 +11,17 @@ type PathCourseRow = {
 
 export function PathCourseList({ trainingPathId, rows }: { trainingPathId: string; rows: PathCourseRow[] }) {
   if (rows.length === 0) {
-    return <p className="mt-4 text-sm text-slate-400">No courses attached yet.</p>;
+    return <p className="mt-4 text-sm text-[var(--color-ink-faint)]">No courses attached yet.</p>;
   }
 
   return (
-    <ol className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+    <ol className="mt-4  rounded-lg border border-[var(--color-border)] bg-white">
       {rows.map((row, index) => (
         <li key={row.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-          <span className="font-medium text-slate-900">
+          <span className="font-medium text-[var(--color-ink)]">
             {index + 1}. {row.course.name}
             {row.course.status === "ARCHIVED" && (
-              <span className="ml-2 text-xs font-normal text-slate-400">(archived)</span>
+              <span className="ml-2 text-xs font-normal text-[var(--color-ink-faint)]">(archived)</span>
             )}
           </span>
           <div className="flex items-center gap-3">
@@ -32,7 +32,7 @@ export function PathCourseList({ trainingPathId, rows }: { trainingPathId: strin
               <button
                 type="submit"
                 disabled={index === 0}
-                className="text-slate-500 hover:text-slate-900 disabled:opacity-30"
+                className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] disabled:opacity-30"
                 aria-label="Move up"
               >
                 ↑
@@ -45,7 +45,7 @@ export function PathCourseList({ trainingPathId, rows }: { trainingPathId: strin
               <button
                 type="submit"
                 disabled={index === rows.length - 1}
-                className="text-slate-500 hover:text-slate-900 disabled:opacity-30"
+                className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] disabled:opacity-30"
                 aria-label="Move down"
               >
                 ↓

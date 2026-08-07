@@ -33,17 +33,17 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div>
-      <Link href="/catalog/courses" className="text-sm text-slate-500 hover:text-slate-700">
+      <Link href="/catalog/courses" className="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         ← Courses
       </Link>
 
       <div className="mt-2 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">{course.name}</h1>
+        <h1 className="page-title">{course.name}</h1>
         <StatusBadge status={course.status} />
       </div>
-      {course.description && <p className="mt-1 text-sm text-slate-500">{course.description}</p>}
+      {course.description && <p className="page-subtitle">{course.description}</p>}
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Videos in this course</h2>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Videos in this course</h2>
       <CourseVideoList courseId={course.id} rows={course.videos} />
       <AddVideoForm courseId={course.id} availableVideos={availableVideos} />
     </div>

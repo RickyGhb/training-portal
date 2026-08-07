@@ -88,13 +88,13 @@ export default async function AuditLogsPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Audit Logs</h1>
-      <p className="mt-1 text-sm text-slate-500">Every sensitive action across the portal, in one place. CEO only.</p>
+      <h1 className="page-title">Audit Logs</h1>
+      <p className="page-subtitle">Every sensitive action across the portal, in one place. CEO only.</p>
 
-      <form method="GET" className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <form method="GET" className="mt-6 flex flex-wrap items-end gap-3 card">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">Action type</label>
-          <select name="actionType" defaultValue={actionType ?? ""} className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Action type</label>
+          <select name="actionType" defaultValue={actionType ?? ""} className="w-56 field">
             <option value="">All</option>
             {ACTION_TYPES.map((a) => (
               <option key={a} value={a}>
@@ -104,21 +104,21 @@ export default async function AuditLogsPage({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">From</label>
-          <input type="date" name="from" defaultValue={typeof sp.from === "string" ? sp.from : ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">From</label>
+          <input type="date" name="from" defaultValue={typeof sp.from === "string" ? sp.from : ""} className="field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-700">To</label>
-          <input type="date" name="to" defaultValue={typeof sp.to === "string" ? sp.to : ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">To</label>
+          <input type="date" name="to" defaultValue={typeof sp.to === "string" ? sp.to : ""} className="field" />
         </div>
-        <button type="submit" className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+        <button type="submit" className="btn-primary">
           Apply
         </button>
       </form>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--color-border)] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+          <thead className="">
             <tr>
               <th className="px-4 py-2">When</th>
               <th className="px-4 py-2">Actor</th>
@@ -128,24 +128,24 @@ export default async function AuditLogsPage({
               <th className="px-4 py-2">Metadata</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="">
             {entries.map((e) => (
               <tr key={e.id}>
-                <td className="whitespace-nowrap px-4 py-2 text-slate-600">{e.createdAt.toLocaleString()}</td>
-                <td className="px-4 py-2 text-slate-600">{e.actor ? `${e.actor.firstName} ${e.actor.lastName} (${e.actor.username})` : "System"}</td>
-                <td className="px-4 py-2 font-medium text-slate-900">{e.actionType}</td>
-                <td className="px-4 py-2 text-slate-600">
+                <td className="whitespace-nowrap px-4 py-2 text-[var(--color-ink-soft)]">{e.createdAt.toLocaleString()}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{e.actor ? `${e.actor.firstName} ${e.actor.lastName} (${e.actor.username})` : "System"}</td>
+                <td className="px-4 py-2 font-medium text-[var(--color-ink)]">{e.actionType}</td>
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">
                   {e.targetUser ? `${e.targetUser.firstName} ${e.targetUser.lastName} (${e.targetUser.username})` : e.targetEntityType}
                 </td>
-                <td className="px-4 py-2 text-slate-600">{e.location?.name ?? "—"}</td>
-                <td className="max-w-xs truncate px-4 py-2 text-xs text-slate-500">
+                <td className="px-4 py-2 text-[var(--color-ink-soft)]">{e.location?.name ?? "—"}</td>
+                <td className="max-w-xs truncate px-4 py-2 text-xs text-[var(--color-ink-soft)]">
                   {e.metadataJson ? JSON.stringify(e.metadataJson) : ""}
                 </td>
               </tr>
             ))}
             {entries.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                   No audit entries match these filters.
                 </td>
               </tr>
@@ -154,18 +154,18 @@ export default async function AuditLogsPage({
         </table>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+      <div className="mt-3 flex items-center justify-between text-sm text-[var(--color-ink-soft)]">
         <span>
           Page {page} of {totalPages} ({total} entries)
         </span>
         <div className="flex gap-2">
           {page > 1 && (
-            <a href={qs({ page: page - 1 })} className="rounded-md border border-slate-300 px-3 py-1 hover:bg-slate-50">
+            <a href={qs({ page: page - 1 })} className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-paper)]">
               ← Previous
             </a>
           )}
           {page < totalPages && (
-            <a href={qs({ page: page + 1 })} className="rounded-md border border-slate-300 px-3 py-1 hover:bg-slate-50">
+            <a href={qs({ page: page + 1 })} className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-paper)]">
               Next →
             </a>
           )}

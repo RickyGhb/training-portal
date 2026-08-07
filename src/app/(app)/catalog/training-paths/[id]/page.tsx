@@ -33,17 +33,17 @@ export default async function TrainingPathDetailPage({ params }: { params: Promi
 
   return (
     <div>
-      <Link href="/catalog/training-paths" className="text-sm text-slate-500 hover:text-slate-700">
+      <Link href="/catalog/training-paths" className="text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         ← Training Paths
       </Link>
 
       <div className="mt-2 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">{path.name}</h1>
+        <h1 className="page-title">{path.name}</h1>
         <StatusBadge status={path.status} />
       </div>
-      {path.description && <p className="mt-1 text-sm text-slate-500">{path.description}</p>}
+      {path.description && <p className="page-subtitle">{path.description}</p>}
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Courses in this path</h2>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Courses in this path</h2>
       <PathCourseList trainingPathId={path.id} rows={path.courses} />
       <AddCourseForm trainingPathId={path.id} availableCourses={availableCourses} />
     </div>

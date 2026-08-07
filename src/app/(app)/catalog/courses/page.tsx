@@ -20,8 +20,8 @@ export default async function CoursesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Courses</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="page-title">Courses</h1>
+      <p className="page-subtitle">
         Reusable modules made of videos. Courses can be attached to multiple training paths or assigned individually
         as extra courses.
       </p>
@@ -30,8 +30,8 @@ export default async function CoursesPage() {
         <CourseForm />
       </div>
 
-      <table className="mt-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+      <table className="mt-6 table-shell">
+        <thead className="">
           <tr>
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Description</th>
@@ -39,11 +39,11 @@ export default async function CoursesPage() {
             <th className="px-4 py-2"></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="">
           {courses.map((course) => (
             <tr key={course.id}>
-              <td className="px-4 py-2 font-medium text-slate-900">{course.name}</td>
-              <td className="px-4 py-2 max-w-sm truncate text-slate-600">{course.description}</td>
+              <td className="px-4 py-2 font-medium text-[var(--color-ink)]">{course.name}</td>
+              <td className="px-4 py-2 max-w-sm truncate text-[var(--color-ink-soft)]">{course.description}</td>
               <td className="px-4 py-2">
                 <StatusBadge status={course.status} />
               </td>
@@ -62,7 +62,7 @@ export default async function CoursesPage() {
           ))}
           {courses.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={4} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                 No courses yet.
               </td>
             </tr>

@@ -48,8 +48,8 @@ export function CreateConsultantForm({ coordinators }: { coordinators: Coordinat
         {state.success && <p className="text-sm text-green-700">{state.success}</p>}
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        Primary training path and extra courses are assigned separately once catalog/assignment features are
-        available.
+        Assign a primary training path and any extra courses from the consultant&apos;s &ldquo;Training &amp;
+        progress&rdquo; page after creating them.
       </p>
     </form>
   );

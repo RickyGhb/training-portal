@@ -1,12 +1,7 @@
 import { z } from "zod";
-import { nameSchema } from "@/lib/validation/user";
+import { nameSchema, optionalTrimmedString } from "@/lib/validation/user";
 
-export const descriptionSchema = z
-  .string()
-  .trim()
-  .max(2000)
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+export const descriptionSchema = optionalTrimmedString(z.string().trim().max(2000));
 
 export const trainingPathSchema = z.object({
   name: nameSchema,

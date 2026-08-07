@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+/**
+ * Normalizes a blank/whitespace-only string to `undefined` before the inner
+ * schema runs. Needed because `z.string()....optional().or(z.literal("").transform(() => undefined))`
+ * only falls through to the empty-string branch when the base schema
+ * actively rejects "" (e.g. `.email()`) — a bare `z.string().trim().optional()`
+ * happily accepts "" as a valid non-empty value, so blank optional fields
+ * (locationId, phone, etc.) were silently passing through as "" instead of
+ * undefined, which downstream broke `foo ?? null` fallbacks and could hit a
+ * Prisma foreign-key error on an empty-string id.
+ */
+export function optionalTrimmedString<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((val) => (typeof val === "string" && val.trim() === "" ? undefined : val), schema.optional());
+}
+
 /** Shared username/password rules used across create + reset flows. */
 export const usernameSchema = z
   .string()
@@ -10,19 +24,9 @@ export const usernameSchema = z
 
 export const nameSchema = z.string().trim().min(1, "Required").max(100);
 
-export const optionalEmailSchema = z
-  .string()
-  .trim()
-  .email("Enter a valid email address.")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+export const optionalEmailSchema = optionalTrimmedString(z.string().trim().email("Enter a valid email address."));
 
-export const optionalPhoneSchema = z
-  .string()
-  .trim()
-  .max(30)
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+export const optionalPhoneSchema = optionalTrimmedString(z.string().trim().max(30));
 
 export const createStaffUserSchema = z.object({
   firstName: nameSchema,
@@ -31,9 +35,9 @@ export const createStaffUserSchema = z.object({
   password: z.string(),
   email: optionalEmailSchema,
   phone: optionalPhoneSchema,
-  locationId: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
-  locationManagerId: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
-  managerId: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
+  locationId: optionalTrimmedString(z.string().trim()),
+  locationManagerId: optionalTrimmedString(z.string().trim()),
+  managerId: optionalTrimmedString(z.string().trim()),
 });
 
 export const createConsultantSchema = createStaffUserSchema.extend({

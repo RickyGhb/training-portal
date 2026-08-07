@@ -12,6 +12,7 @@ import {
   usernameSchema,
 } from "@/lib/validation/user";
 import { logAudit, notifyCeos } from "@/lib/audit";
+import { UserFacingError } from "@/lib/errors";
 
 export type FormState = { error?: string; success?: string };
 
@@ -23,7 +24,12 @@ async function requireActor(): Promise<SessionUser> {
 
 async function assertUsernameAvailable(username: string) {
   const existing = await prisma.user.findUnique({ where: { usernameLower: username.toLowerCase() } });
-  if (existing) throw new Error("That username is already taken.");
+  if (existing) throw new UserFacingError("That username is already taken.");
+}
+
+/** Catch-block helper: only ever surface messages we deliberately wrote for the user (UserFacingError). Anything else (Prisma errors, unexpected exceptions) would leak internal details. */
+function toFormError(err: unknown): { error: string } {
+  return { error: err instanceof UserFacingError ? err.message : "Something went wrong. Please try again." };
 }
 
 /** Creates a MANAGER, LOCATION_MANAGER, or COORDINATOR account. */
@@ -105,7 +111,7 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
     revalidatePath("/users");
     return { success: `${firstName} ${lastName} created.` };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Something went wrong." };
+    return toFormError(err);
   }
 }
 
@@ -177,7 +183,7 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
     revalidatePath("/users/consultants");
     return { success: `${firstName} ${lastName} created.` };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Something went wrong." };
+    return toFormError(err);
   }
 }
 
@@ -218,7 +224,7 @@ export async function updateUsernameAction(_prevState: FormState, formData: Form
     revalidatePath("/users");
     return { success: "Username updated." };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Something went wrong." };
+    return toFormError(err);
   }
 }
 

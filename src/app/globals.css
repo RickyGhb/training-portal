@@ -12,12 +12,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * No dark-mode variant: every component in this app hardcodes light-mode
+ * Tailwind classes (bg-white, border-slate-300, etc.) with no explicit text
+ * color on form inputs. A prefers-color-scheme override here would flip the
+ * global text color near-white while inputs stay white-background, making
+ * typed text unreadable — which is exactly what happened before this was
+ * removed. Build a real dark theme (dark: variants throughout) before
+ * reintroducing this.
+ */
 
 body {
   background: var(--background);

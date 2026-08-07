@@ -58,9 +58,14 @@ export default async function DashboardPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-900">Welcome, {user.firstName}</h1>
       <p className="mt-2 text-sm text-slate-500">
-        Full reporting dashboards land in Phase 5. For now, this confirms your login and
-        role-based access are working end to end.
+        See consultant progress, completion breakdowns, and filters on the Reports page.
       </p>
+      <Link
+        href="/reports"
+        className="mt-4 inline-block rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+      >
+        Go to Reports
+      </Link>
     </div>
   );
 }

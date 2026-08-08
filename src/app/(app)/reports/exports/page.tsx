@@ -10,7 +10,7 @@ export default async function ExportsPage({
 }) {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
-  if (!canExportReports(actor.role)) redirect("/reports");
+  if (!canExportReports(actor.role)) redirect("/dashboard");
 
   const sp = await searchParams;
   const defaults = {

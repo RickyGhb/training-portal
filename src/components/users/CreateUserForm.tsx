@@ -47,8 +47,11 @@ export function CreateUserForm({
   return (
     <div className="card">
       <div className="mb-4 max-w-xs">
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Account type</label>
+        <label htmlFor="account-type" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Account type
+        </label>
         <select
+          id="account-type"
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
           className="w-full field"
@@ -98,8 +101,10 @@ function CreateUserFields({
         <Field label="Phone" name="phone" />
         {isConsultant ? (
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Coordinator</label>
-            <select name="coordinatorId" required className="w-full field" defaultValue="">
+            <label htmlFor="field-coordinatorId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+              Coordinator
+            </label>
+            <select id="field-coordinatorId" name="coordinatorId" required className="w-full field" defaultValue="">
               <option value="" disabled>
                 Select a coordinator
               </option>
@@ -113,10 +118,11 @@ function CreateUserFields({
         ) : (
           locationMode !== "none" && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+              <label htmlFor="field-locationId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
                 Location{locationMode === "optional" ? " (leave blank to stay independent)" : ""}
               </label>
               <select
+                id="field-locationId"
                 name="locationId"
                 required={locationMode === "required"}
                 className="w-full field"
@@ -163,8 +169,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">{label}</label>
-      <input name={name} type={type} required={required} className="w-full field" />
+      <label htmlFor={`field-${name}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+        {label}
+      </label>
+      <input id={`field-${name}`} name={name} type={type} required={required} className="w-full field" />
     </div>
   );
 }

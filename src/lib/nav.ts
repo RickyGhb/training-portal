@@ -14,18 +14,11 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "CEO":
       return [
         dashboard,
-        { label: "Create User", href: "/users/new", enabled: true },
         { label: "Locations", href: "/locations", enabled: true },
-        { label: "CEOs", href: "/users/ceos", enabled: true },
-        { label: "Managers", href: "/users/managers", enabled: true },
-        { label: "Location Managers", href: "/users/location-managers", enabled: true },
-        { label: "Coordinators", href: "/users/coordinators", enabled: true },
-        { label: "Consultants", href: "/users/consultants", enabled: true },
-        { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
+        { label: "User Management", href: "/users/management", enabled: true },
         { label: "Training Paths", href: "/catalog/training-paths", enabled: true },
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
         { label: "Notifications", href: "/notifications", enabled: true },
         { label: "Audit Logs", href: "/audit-logs", enabled: true },
@@ -33,32 +26,21 @@ export function navItemsForRole(role: Role): NavItem[] {
     case "MANAGER":
       return [
         dashboard,
-        { label: "Create User", href: "/users/new", enabled: true },
-        { label: "Location Managers", href: "/users/location-managers", enabled: true },
-        { label: "Coordinators", href: "/users/coordinators", enabled: true },
-        { label: "Consultants", href: "/users/consultants", enabled: true },
-        { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
+        { label: "User Management", href: "/users/management", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
       ];
     case "LOCATION_MANAGER":
       return [
         dashboard,
-        { label: "Create User", href: "/users/new", enabled: true },
-        { label: "Coordinators", href: "/users/coordinators", enabled: true },
-        { label: "Consultants", href: "/users/consultants", enabled: true },
-        { label: "Bulk Reassignment", href: "/users/bulk-reassign", enabled: true },
+        { label: "User Management", href: "/users/management", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Reports", href: "/reports", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
       ];
     case "COORDINATOR":
       return [
         dashboard,
-        { label: "Create User", href: "/users/new", enabled: true },
-        { label: "My Consultants", href: "/users/consultants", enabled: true },
-        { label: "Reports", href: "/reports", enabled: true },
+        { label: "User Management", href: "/users/management", enabled: true },
       ];
     case "CONSULTANT":
       return [

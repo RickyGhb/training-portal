@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Training Portal** is a private enterprise training management system built to facilitate organizational training paths, course management, and consultant progress tracking. It provides role-based access control with five permission tiers (CEO, Manager, Location Manager, Coordinator, Consultant) and enables structured training delivery across distributed teams.
+**Training Portal** is a private enterprise training management system built to facilitate organizational training paths, course management, and consultant progress tracking. It provides role-based access control with five permission tiers (CEO, Location Manager, Location Admin, Coordinator, Consultant) and enables structured training delivery across distributed teams.
 
 **Current Version:** 0.1.0  
 **Status:** In active development (Phase 1 complete)  
@@ -43,9 +43,9 @@
 ### Core Entities
 
 **User**
-- Roles: CEO, MANAGER, LOCATION_MANAGER, COORDINATOR, CONSULTANT
+- Roles: CEO, LOCATION_MANAGER, LOCATION_ADMIN, COORDINATOR, CONSULTANT
 - Status: ACTIVE, DEACTIVATED, DELETED
-- Hierarchy: Manager → consultants; Location Manager → coordinators/consultants; Coordinator → consultants
+- Hierarchy: Location Manager → Location Admins/Coordinators/Consultants (within their location); Location Admin → coordinators/consultants (within their location); Coordinator → consultants. Note: the `managerId`/`locationManagerId` FK column names on `User` predate the role rename and were intentionally left as-is — `managerId` points to a user's Location Manager supervisor, `locationManagerId` to their Location Admin supervisor.
 - Fields: id, firstName, lastName, username (unique, lowercase mirror), passwordHash, email, phone, status, locationId, managerId, locationManagerId, coordinatorId, createdByUserId, timestamps
 
 **Location**
@@ -77,7 +77,7 @@
 - **Session**: Secure session storage with token hashing and IP/User-Agent logging
 
 **Enums:**
-- Role: CEO, MANAGER, LOCATION_MANAGER, COORDINATOR, CONSULTANT
+- Role: CEO, LOCATION_MANAGER, LOCATION_ADMIN, COORDINATOR, CONSULTANT
 - UserStatus: ACTIVE, DEACTIVATED, DELETED
 - ContentStatus: ACTIVE, ARCHIVED
 - AuditActionType: 22 actions
@@ -102,34 +102,37 @@ Central authorization in `src/lib/auth/rbac.ts` (referenced from Technical Imple
 
 **Role Rank Hierarchy:**
 ```
-CEO (4) > MANAGER (3) > LOCATION_MANAGER (2) > COORDINATOR (1) > CONSULTANT (0)
+CEO (4) > LOCATION_MANAGER (3) > LOCATION_ADMIN (2) > COORDINATOR (1) > CONSULTANT (0)
 ```
+
+> **Renamed 2026-08-08:** the old `MANAGER` role is now `LOCATION_MANAGER` ("Location Manager"), and the old `LOCATION_MANAGER` role is now `LOCATION_ADMIN` ("Location Admin"). Each renamed role kept its own original permission set at rename time; Location Manager's permissions were then further changed (see below) to be scoped to a single assigned location, matching Location Admin's existing pattern, plus given catalog structure access.
 
 **Creatable Roles by Actor:**
 - CEO: Can create all roles
-- MANAGER: Can create Location Manager, Coordinator, Consultant
-- LOCATION_MANAGER: Can create Coordinator, Consultant
+- LOCATION_MANAGER (Location Manager): Can create Location Admin, Coordinator, Consultant
+- LOCATION_ADMIN (Location Admin): Can create Coordinator, Consultant
 - COORDINATOR: Can create Consultant
 - CONSULTANT: Cannot create roles
 
 **User Management Scope:**
 - CEO: Manage all users
-- MANAGER: Manage all except CEO and other Managers
-- LOCATION_MANAGER: Manage Coordinators and Consultants in same location only
+- LOCATION_MANAGER (Location Manager): Manage all roles below them **within their own assigned location only** (excludes CEO and other Location Managers) — as of 2026-08-08, Location Manager is now assigned exactly one location at creation and is restricted to it, the same way Location Admin already was
+- LOCATION_ADMIN (Location Admin): Manage Coordinators and Consultants in same location only
 - COORDINATOR: Manage only their assigned Consultants
 - CONSULTANT: Self only
 
-**Key Authorization Functions:**
+**Key Authorization Functions** (`src/lib/auth/rbac.ts`):
 - `canCreateRole(actorRole, targetRole)`: Role creation matrix
-- `canManageUser(actor, target)`: User scope enforcement
+- `canManageUser(actor, target)`: User scope enforcement — location-scoped for both Location Manager and Location Admin
 - `canAssignExtraCourses(actor, target)`: Extra course assignment (not available to Coordinators/Consultants)
 - `canAssignTrainingPath(actor, target)`: Primary path assignment (not available to Consultants)
-- `canExportReports(actorRole)`: CEO, Manager, Location Manager only
-- `canBulkReassign(actorRole)`: CEO, Manager, Location Manager only
-- `canManageCatalogStructure(actorRole)`: CEO only
-- `canManageVideos(actorRole)`: CEO, Manager, Location Manager
+- `canExportReports(actorRole)`: CEO, Location Manager, Location Admin only — export data itself is location-scoped for the latter two via `consultantScopeFilter` in `src/lib/reports.ts`
+- `canBulkReassign(actorRole)`: CEO, Location Manager, Location Admin only — scoped the same way via `userVisibilityFilter`/`canManageUser`
+- `canManageCatalogStructure(actorRole)`: CEO and Location Manager (create/edit/archive Training Paths and Courses) — deliberately global/unscoped, since neither entity has a `locationId`
+- `canManageVideos(actorRole)`: CEO, Location Manager, Location Admin — global/unscoped (Video has no `locationId` either)
 - `isCeo(actorRole)`: Audit log and notification visibility (CEO only)
-- `userVisibilityFilter(actor)`: Prisma where-filter for list endpoints (scopes results)
+- `userVisibilityFilter(actor)`: Prisma where-filter for list endpoints (scopes results; location-scoped with an explicit null-location guard for Location Manager/Location Admin)
+- `locationAssignmentModeFor(actorRole, targetRole)`: returns `"none" | "required" | "optional" | "inherit"` — drives whether the create-user form shows a location picker, and whether the server auto-assigns the actor's own location to a new subordinate
 
 ---
 
@@ -153,8 +156,8 @@ src/
 │   │   │   ├── location-form.tsx     # Create/edit location
 │   │   │   └── actions.ts            # Location CRUD server actions
 │   │   ├── users/
-│   │   │   ├── managers/             # Manager list
-│   │   │   ├── location-managers/    # Location Manager list
+│   │   │   ├── managers/             # Location Manager list (folder name predates the rename)
+│   │   │   ├── location-managers/    # Location Admin list (folder name predates the rename)
 │   │   │   ├── coordinators/         # Coordinator list
 │   │   │   ├── consultants/          # Consultant list
 │   │   │   │   ├── page.tsx
@@ -258,8 +261,8 @@ src/
 
 ### 2. Training Catalog
 - Hierarchical structure: Training Path → Courses → Videos
-- CEO-only creation/editing of paths and courses (initially)
-- CEO/Manager/Location Manager can upload/edit videos
+- CEO and Location Manager can create/edit paths and courses
+- CEO/Location Manager/Location Admin can upload/edit videos
 - Video metadata: Google Drive integration, thumbnails, duration
 - Archive status for soft deletes
 - Sort order for course/video sequencing
@@ -268,16 +271,16 @@ src/
 - Primary training path assignment per consultant
 - Extra course assignments (ad-hoc, independent of primary path)
 - Assignment tracking with actor audit log
-- Only CEO, Manager, Location Manager can assign paths
+- Only CEO, Location Manager, Location Admin can assign paths
 
 ### 4. Progress Tracking
 - Video completion markers (unique per consultant-video)
 - Progress dashboard: completion %, completed/pending counts, last activity
 - Consultant-facing view (My Courses section)
-- Manager/Coordinator view: progress reports with filtering
+- Location Manager/Coordinator view: progress reports with filtering
 
 ### 5. Reporting & Exports
-- Role-based report access (CEO, Manager, Location Manager only)
+- Role-based report access (CEO, Location Manager, Location Admin only)
 - ExcelJS-powered XLSX export
 - Consultant progress snapshots (assignments, completions, dates)
 - Export history and notification (CEO only)
@@ -295,64 +298,65 @@ src/
 - Source audit log tracking
 
 ---
-
+  
 ## User Roles & Permissions
 
 ### CEO
 - **Management:** All users, locations, training paths, courses, videos
 - **Reporting:** Full access to reports, exports, audit logs, notifications
 - **Constraints:** None
-- **Navigation:** 14 items (Dashboard, Locations, Managers, Location Managers, Coordinators, Consultants, Bulk Reassignment, Training Paths, Courses, Videos, Reports, Exports, Notifications, Audit Logs)
+- **Navigation:** 9 items (Dashboard, Locations, User Management, Training Paths, Courses, Videos, Exports, Notifications, Audit Logs)
 
-### MANAGER
-- **Management:** Location Managers, Coordinators, Consultants (not other Managers/CEO)
-- **Reporting:** Full report and export access
-- **Bulk Reassignment:** Yes
-- **Video Management:** Can edit videos
-- **Constraints:** Cannot create locations or training paths; location scoping N/A
-- **Navigation:** 8 items
+### LOCATION_MANAGER (Location Manager — renamed from MANAGER, 2026-08-08)
+- **Management:** Location Admins, Coordinators, and Consultants — **within their own assigned location only** (not other Managers/CEO, not other locations)
+- **Reporting:** Report and export access, scoped to their own location
+- **Bulk Reassignment:** Yes, within their location
+- **Video Management:** Can add/edit/delete videos (global, not location-scoped — the video catalog is shared)
+- **Catalog Structure:** Can create/edit/archive Training Paths and Courses (global — same reason)
+- **Constraints:** Assigned to exactly one location at creation; cannot see or manage any other location's users/data; cannot create locations
+- **Navigation:** 6 items (Dashboard, User Management, Training Paths, Courses, Videos, Exports)
 
-### LOCATION_MANAGER
+### LOCATION_ADMIN (Location Admin — renamed from LOCATION_MANAGER, 2026-08-08)
 - **Management:** Coordinators and Consultants in assigned location only
 - **Reporting:** Location-scoped reports and exports
 - **Bulk Reassignment:** Yes (within location)
-- **Video Management:** Can edit videos
-- **Constraints:** Single location scope; no path/course creation
-- **Navigation:** 7 items
+- **Video Management:** Can add/edit/delete videos (global)
+- **Constraints:** Single location scope; no Training Path/Course creation (Location Manager or CEO only)
+- **Navigation:** 4 items (Dashboard, User Management, Videos, Exports)
 
 ### COORDINATOR
 - **Management:** View only own assigned Consultants
 - **Training Assignment:** Cannot assign paths or extra courses
 - **Reporting:** View own consultants' progress only
 - **Constraints:** No user creation, no catalog management
-- **Navigation:** 3 items (Dashboard, My Consultants, Reports)
+- **Navigation:** 2 items (Dashboard, User Management)
 
 ### CONSULTANT
 - **Training:** View and complete assigned courses/videos
 - **Dashboard:** Progress overview (completion %, last activity)
 - **My Courses:** Browse assigned path/extra courses, watch videos, mark complete
 - **Constraints:** Single active session; cannot see other users; no management
-- **Navigation:** 2 items (Dashboard, My Courses)
+- **Navigation:** 2 items (My Dashboard, My Courses)
 
 ---
 
 ## Navigation Structure
 
-Navigation is role-aware and defined in `src/lib/nav.ts`. Items marked `enabled: false` are placeholders for future phases:
+Navigation is role-aware and defined in `src/lib/nav.ts`. User Management, Reports, and Bulk Reassignment were consolidated into single pages rather than separate nav items.
 
-**CEO (14 items, all enabled):**
-Dashboard, Locations, Managers, Location Managers, Coordinators, Consultants, Bulk Reassignment, Training Paths, Courses, Videos, Reports, Exports, Notifications, Audit Logs
+**CEO (9 items):**
+Dashboard, Locations, User Management, Training Paths, Courses, Videos, Exports, Notifications, Audit Logs
 
-**MANAGER (8 items, all enabled):**
-Dashboard, Location Managers, Coordinators, Consultants, Bulk Reassignment, Videos, Reports, Exports
+**LOCATION_MANAGER — Location Manager (6 items):**
+Dashboard, User Management, Training Paths, Courses, Videos, Exports
 
-**LOCATION_MANAGER (7 items, all enabled):**
-Dashboard, Coordinators, Consultants, Bulk Reassignment, Videos, Reports, Exports
+**LOCATION_ADMIN — Location Admin (4 items):**
+Dashboard, User Management, Videos, Exports
 
-**COORDINATOR (3 items, all enabled):**
-Dashboard, My Consultants (view own), Reports
+**COORDINATOR (2 items):**
+Dashboard, User Management
 
-**CONSULTANT (2 items, all enabled):**
+**CONSULTANT (2 items):**
 My Dashboard, My Courses
 
 ---
@@ -372,25 +376,25 @@ My Dashboard, My Courses
 ### Consultants (`/users/consultants`)
 - **Role-scoped list:** Shows users visible to current actor
 - **Detail view** (`/users/consultants/[id]`):
-  - Assign/change primary training path (CEO, Manager, Location Manager only)
+  - Assign/change primary training path (CEO, Location Manager, Location Admin only)
   - View/add extra courses
   - See training path and progress
   - Full audit trail of assignments
 
 ### Training Paths (`/catalog/training-paths`)
-- **CEO only:** Create, edit, archive paths
+- **CEO, Location Manager:** Create, edit, archive paths
 - **Detail view** (`/catalog/training-paths/[id]`):
   - Add/reorder courses
   - View associated courses with sort order
 
 ### Courses (`/catalog/courses`)
-- **CEO only:** Create, edit, archive courses
+- **CEO, Location Manager:** Create, edit, archive courses
 - **Detail view** (`/catalog/courses/[id]`):
   - Add/reorder videos
   - View associated videos
 
 ### Videos (`/catalog/videos`)
-- **CEO, Manager, Location Manager:** Create (with Google Drive file picker), edit, archive
+- **CEO, Location Manager, Location Admin:** Create (with Google Drive file picker), edit, archive
 - **Row actions:** Edit, archive
 - **Fields:** Title, description, Drive source URL, embed URL, thumbnail, duration
 
@@ -413,7 +417,7 @@ My Dashboard, My Courses
 - **Types:** Report exported, password reset, user deleted
 
 ### Bulk Reassignment (`/users/bulk-reassign`)
-- **CEO, Manager, Location Manager:** Upload CSV or select consultants to reassign between coordinators
+- **CEO, Location Manager, Location Admin:** Upload CSV or select consultants to reassign between coordinators
 - **Audit log:** One entry per reassigned consultant
 
 ---
@@ -519,7 +523,7 @@ npm run postinstall      # Auto-run: Prisma generate
 ## Known Limitations & Future Phases
 
 - **Coordinators cannot assign paths/extra courses** (to be enabled in Phase 2)
-- **Video management** initially restricted to CEO/Manager/Location Manager (may expand)
+- **Video management** restricted to CEO/Location Manager/Location Admin (may expand)
 - **Notifications** currently CEO-only recipients (will expand to other roles)
 - **Google Drive integration** present in `src/lib/drive.ts` (implementation details TBD)
 - **Navigation placeholders:** Several future features marked `enabled: false` in nav
@@ -569,5 +573,5 @@ npm run postinstall      # Auto-run: Prisma generate
 
 For questions about the codebase structure, architectural decisions, or development workflow, refer to comments in key files (`src/lib/auth/rbac.ts`, `prisma/schema.prisma`, etc.) and the source spec referenced above.
 
-**Last Updated:** 2026-08-07  
+**Last Updated:** 2026-08-08 — updated for the MANAGER→Location Manager / LOCATION_MANAGER→Location Admin role rename, Location Manager's location-scoped permissions, and removal of the 2026-08-07 demo dataset.  
 **Generated by:** Cowork Claude Documentation Generator

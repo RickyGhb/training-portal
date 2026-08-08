@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
     metadata: { format, filters, rowCount: rows.length },
   });
 
-  if (actor.role === "MANAGER") {
+  if (actor.role === "LOCATION_MANAGER") {
     await notifyCeos({
       type: "REPORT_EXPORTED",
-      title: "Manager exported a report",
+      title: "Location Manager exported a report",
       body: `${actor.firstName} ${actor.lastName} exported a ${format.toUpperCase()} report (${rows.length} consultant${rows.length === 1 ? "" : "s"}).`,
       sourceAuditLogId: auditEntry.id,
     });

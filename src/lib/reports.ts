@@ -7,19 +7,17 @@ import { getConsultantProgress } from "@/lib/content-resolution";
  * Reporting queries per Technical Implementation Blueprint.md §12 (dashboard
  * aggregates + consultant-level metrics) and §19 (filtering model). Scope is
  * always applied server-side — the same visibility rule as everywhere else:
- * CEO/Manager see everything (Manager minus CEO/Manager accounts, which
- * doesn't apply here since this module is consultant-only), Location
- * Manager is confined to their location, Coordinator to their own
- * consultants.
+ * CEO sees everything; Location Manager and Location Admin are each confined
+ * to their own location; Coordinator to their own consultants.
  */
 
 function consultantScopeFilter(actor: SessionUser) {
   switch (actor.role) {
     case "CEO":
-    case "MANAGER":
       return {};
     case "LOCATION_MANAGER":
-      return { locationId: actor.locationId };
+    case "LOCATION_ADMIN":
+      return actor.locationId ? { locationId: actor.locationId } : { id: "__none__" };
     case "COORDINATOR":
       return { coordinatorId: actor.id };
     default:

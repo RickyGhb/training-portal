@@ -3,27 +3,11 @@
 import { useActionState, useState } from "react";
 import type { Role } from "@/generated/prisma/client";
 import { createStaffUserAction, createConsultantAction } from "@/app/(app)/users/actions";
+import { locationAssignmentModeFor } from "@/lib/auth/rbac";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 
 type Location = { id: string; name: string };
 type Coordinator = { id: string; firstName: string; lastName: string; username: string };
-
-const ROLE_LABELS: Record<Role, string> = {
-  CEO: "CEO",
-  MANAGER: "Manager",
-  LOCATION_MANAGER: "Location Manager",
-  COORDINATOR: "Coordinator",
-  CONSULTANT: "Consultant",
-};
-
-function locationModeFor(actorRole: Role, role: Role): "none" | "required" | "optional" {
-  if (role === "LOCATION_MANAGER") return "required";
-  if (role === "COORDINATOR") {
-    if (actorRole === "CEO") return "optional";
-    if (actorRole === "LOCATION_MANAGER") return "none"; // auto-assigned to the location manager's own location
-    return "required"; // MANAGER must supply a location
-  }
-  return "none"; // CEO, MANAGER targets are never location-scoped
-}
 
 /**
  * One create-user form for every role an actor is allowed to create. The
@@ -88,7 +72,7 @@ function CreateUserFields({
   const isConsultant = role === "CONSULTANT";
   const action = isConsultant ? createConsultantAction : createStaffUserAction.bind(null, role);
   const [state, formAction, pending] = useActionState(action, {});
-  const locationMode = locationModeFor(actorRole, role);
+  const locationMode = locationAssignmentModeFor(actorRole, role);
 
   return (
     <form action={formAction}>
@@ -116,7 +100,7 @@ function CreateUserFields({
             </select>
           </div>
         ) : (
-          locationMode !== "none" && (
+          (locationMode === "required" || locationMode === "optional") && (
             <div>
               <label htmlFor="field-locationId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
                 Location{locationMode === "optional" ? " (leave blank to stay independent)" : ""}

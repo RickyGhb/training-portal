@@ -3,16 +3,9 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { navItemsForRole } from "@/lib/nav";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 import { ChangePasswordButton } from "@/components/users/ChangePasswordButton";
 import { logoutAction } from "./actions";
-
-const ROLE_LABELS: Record<string, string> = {
-  CEO: "CEO",
-  MANAGER: "Manager",
-  LOCATION_MANAGER: "Location Manager",
-  COORDINATOR: "Coordinator",
-  CONSULTANT: "Consultant",
-};
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();

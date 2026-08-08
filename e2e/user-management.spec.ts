@@ -82,22 +82,23 @@ test.describe("User Management", () => {
       deleteDisposableUsers();
     });
 
-    test("CEO can create a Manager account from the Create User page, and it appears in User Management", async ({ page }) => {
+    test("CEO can create a Location Manager account from the Create User page, and it appears in User Management", async ({ page }) => {
       const username = disposableUsername("mgr");
 
       await loginAs(page, DEMO_USERS.ceo.username);
       await page.goto("/users/new");
 
-      await page.getByLabel("Account type").selectOption("MANAGER");
+      await page.getByLabel("Account type").selectOption("LOCATION_MANAGER");
       await page.getByLabel("First name").fill("E2E");
       await page.getByLabel("Last name").fill("Tester");
       await page.getByLabel("Username").fill(username);
       await page.getByLabel("Password").fill(DISPOSABLE_PASSWORD);
+      await page.getByLabel("Location").selectOption({ index: 1 });
       await page.getByRole("button", { name: "Create account" }).click();
 
       await expect(page.getByText("E2E Tester created.")).toBeVisible();
 
-      await page.goto(`/users/management?role=MANAGER&q=${username}`);
+      await page.goto(`/users/management?role=LOCATION_MANAGER&q=${username}`);
       await expect(page.locator("tbody tr", { hasText: username })).toBeVisible();
     });
   });

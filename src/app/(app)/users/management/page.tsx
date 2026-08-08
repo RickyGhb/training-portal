@@ -4,27 +4,20 @@ import type { Prisma, Role } from "@/generated/prisma/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { userVisibilityFilter, canBulkReassign } from "@/lib/auth/rbac";
+import { ROLE_LABELS } from "@/lib/roleLabels";
 import { StatusBadge } from "@/components/ui/Badge";
 import { UserRowActions } from "@/components/users/UserRowActions";
 
-const ROLE_LABELS: Record<Role, string> = {
-  CEO: "CEO",
-  MANAGER: "Manager",
-  LOCATION_MANAGER: "Location Manager",
-  COORDINATOR: "Coordinator",
-  CONSULTANT: "Consultant",
-};
-
-const ALL_ROLES: Role[] = ["CEO", "MANAGER", "LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"];
+const ALL_ROLES: Role[] = ["CEO", "LOCATION_MANAGER", "LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"];
 
 /** Roles visible to this actor at all, derived from the same scope rule as userVisibilityFilter, for populating the role filter dropdown. */
 function visibleRolesFor(actorRole: Role): Role[] {
   switch (actorRole) {
     case "CEO":
       return ALL_ROLES;
-    case "MANAGER":
-      return ["LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"];
     case "LOCATION_MANAGER":
+      return ["LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"];
+    case "LOCATION_ADMIN":
       return ["COORDINATOR", "CONSULTANT"];
     case "COORDINATOR":
       return ["CONSULTANT"];

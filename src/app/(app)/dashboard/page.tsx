@@ -105,7 +105,7 @@ export default async function DashboardPage({
   const [aggregates, rows, locations, coordinators, trainingPaths] = await Promise.all([
     getDashboardAggregates(user),
     getConsultantReportRows(user, filters),
-    user.role === "CEO" || user.role === "MANAGER"
+    user.role === "CEO"
       ? prisma.location.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
     user.role !== "COORDINATOR"

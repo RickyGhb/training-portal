@@ -13,8 +13,8 @@ datasource db {
 
 enum Role {
   CEO
-  MANAGER
   LOCATION_MANAGER
+  LOCATION_ADMIN
   COORDINATOR
   CONSULTANT
 }

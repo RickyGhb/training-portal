@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import type { Role } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, clearSessionCookie, type SessionUser } from "@/lib/auth/session";
-import { canCreateRole, canManageUser, canBulkReassign, type ScopeSubject } from "@/lib/auth/rbac";
+import {
+  canCreateRole,
+  canManageUser,
+  canBulkReassign,
+  locationAssignmentModeFor,
+  type ScopeSubject,
+} from "@/lib/auth/rbac";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/auth/password";
 import {
   createStaffUserSchema,
@@ -33,7 +39,7 @@ function toFormError(err: unknown): { error: string } {
   return { error: err instanceof UserFacingError ? err.message : "Something went wrong. Please try again." };
 }
 
-/** Creates a MANAGER, LOCATION_MANAGER, or COORDINATOR account. */
+/** Creates a LOCATION_MANAGER, LOCATION_ADMIN, or COORDINATOR account. */
 export async function createStaffUserAction(role: Role, _prevState: FormState, formData: FormData): Promise<FormState> {
   const actor = await requireActor();
 
@@ -60,23 +66,29 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
 
   // Location scoping rules per role.
   let finalLocationId: string | null = null;
+  const mode = locationAssignmentModeFor(actor.role, role);
+
+  if (mode === "required") {
+    if (!locationId) return { error: "A location is required for this account type." };
+    finalLocationId = locationId;
+  } else if (mode === "optional") {
+    finalLocationId = locationId ?? null;
+  } else if (mode === "inherit") {
+    if (!actor.locationId) {
+      return { error: "Your account isn't assigned to a location yet, so you can't create users. Ask a CEO to assign one." };
+    }
+    finalLocationId = actor.locationId;
+  }
+
+  // Supervisor chain: who is this new user's Location Manager / Location Admin?
+  let finalManagerId: string | null = null;
   let finalLocationManagerId: string | null = null;
 
-  if (role === "LOCATION_MANAGER") {
-    if (!locationId) return { error: "A location is required for Location Managers." };
-    finalLocationId = locationId;
-  } else if (role === "COORDINATOR") {
-    if (actor.role === "CEO") {
-      // CEO may leave this coordinator independent (no location).
-      finalLocationId = locationId ?? null;
-    } else if (actor.role === "LOCATION_MANAGER") {
-      finalLocationId = actor.locationId;
-      finalLocationManagerId = actor.id;
-    } else {
-      // MANAGER must supply a location for the coordinator they create.
-      if (!locationId) return { error: "A location is required." };
-      finalLocationId = locationId;
-    }
+  if (actor.role === "LOCATION_MANAGER") {
+    finalManagerId = actor.id;
+  } else if (actor.role === "LOCATION_ADMIN") {
+    finalLocationManagerId = actor.id;
+    finalManagerId = actor.managerId;
   }
 
   try {
@@ -94,6 +106,7 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
         email,
         phone,
         locationId: finalLocationId,
+        managerId: finalManagerId,
         locationManagerId: finalLocationManagerId,
         createdByUserId: actor.id,
       },

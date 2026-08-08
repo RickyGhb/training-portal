@@ -10,8 +10,8 @@ import type { SessionUser } from "@/lib/auth/session";
 
 const ROLE_RANK: Record<Role, number> = {
   CEO: 4,
-  MANAGER: 3,
-  LOCATION_MANAGER: 2,
+  LOCATION_MANAGER: 3,
+  LOCATION_ADMIN: 2,
   COORDINATOR: 1,
   CONSULTANT: 0,
 };
@@ -32,9 +32,9 @@ export type ScopeSubject = {
 
 /** Which roles each role is allowed to CREATE. */
 const CREATABLE_ROLES: Record<Role, Role[]> = {
-  CEO: ["CEO", "MANAGER", "LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"],
-  MANAGER: ["LOCATION_MANAGER", "COORDINATOR", "CONSULTANT"],
-  LOCATION_MANAGER: ["COORDINATOR", "CONSULTANT"],
+  CEO: ["CEO", "LOCATION_MANAGER", "LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"],
+  LOCATION_MANAGER: ["LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"],
+  LOCATION_ADMIN: ["COORDINATOR", "CONSULTANT"],
   COORDINATOR: ["CONSULTANT"],
   CONSULTANT: [],
 };
@@ -59,15 +59,19 @@ export function canManageUser(actor: SessionUser, target: ScopeSubject): boolean
   switch (actor.role) {
     case "CEO":
       return true;
-    case "MANAGER":
-      // Manager can manage everyone except CEO and other Managers.
-      return target.role !== "CEO" && target.role !== "MANAGER";
     case "LOCATION_MANAGER":
       // Restricted to own location, and only roles below Location Manager.
       return (
         target.locationId !== null &&
         target.locationId === actor.locationId &&
         ROLE_RANK[target.role] < ROLE_RANK["LOCATION_MANAGER"]
+      );
+    case "LOCATION_ADMIN":
+      // Restricted to own location, and only roles below Location Admin.
+      return (
+        target.locationId !== null &&
+        target.locationId === actor.locationId &&
+        ROLE_RANK[target.role] < ROLE_RANK["LOCATION_ADMIN"]
       );
     case "COORDINATOR":
       // Restricted to consultants they own.
@@ -93,24 +97,50 @@ export function canAssignTrainingPath(actor: SessionUser, target: ScopeSubject):
   return canManageUser(actor, target);
 }
 
-/** Can the actor export reports (CEO, Manager, Location Manager only)? */
+/** Can the actor export reports (CEO, Location Manager, Location Admin only)? */
 export function canExportReports(actorRole: Role): boolean {
-  return actorRole === "CEO" || actorRole === "MANAGER" || actorRole === "LOCATION_MANAGER";
+  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN";
 }
 
 /** Can the actor bulk-reassign consultants between coordinators? */
 export function canBulkReassign(actorRole: Role): boolean {
-  return actorRole === "CEO" || actorRole === "MANAGER" || actorRole === "LOCATION_MANAGER";
+  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN";
 }
 
-/** Can the actor manage the structural catalog (create/edit/delete training paths and courses)? */
+/**
+ * Can the actor manage the structural catalog (create/edit/delete training
+ * paths and courses)? Deliberately global/unscoped for Location Manager —
+ * Course and TrainingPath have no locationId, so there's no location concept
+ * to restrict this to.
+ */
 export function canManageCatalogStructure(actorRole: Role): boolean {
-  return actorRole === "CEO";
+  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER";
 }
 
 /** Can the actor add/edit/delete videos in the shared catalog? */
 export function canManageVideos(actorRole: Role): boolean {
-  return actorRole === "CEO" || actorRole === "MANAGER" || actorRole === "LOCATION_MANAGER";
+  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN";
+}
+
+export type LocationAssignmentMode = "none" | "required" | "optional" | "inherit";
+
+/**
+ * How should a location be assigned to a user of `targetRole` being created
+ * by `actorRole`? "inherit" means no picker is shown — the server copies the
+ * actor's own locationId. "none" means the created user gets no location.
+ */
+export function locationAssignmentModeFor(actorRole: Role, targetRole: Role): LocationAssignmentMode {
+  if (targetRole === "CEO") return "none";
+  if (targetRole === "LOCATION_MANAGER") return "required";
+  if (targetRole === "LOCATION_ADMIN") {
+    return actorRole === "LOCATION_MANAGER" ? "inherit" : "required";
+  }
+  if (targetRole === "COORDINATOR") {
+    if (actorRole === "CEO") return "optional";
+    if (actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN") return "inherit";
+    return "required";
+  }
+  return "none";
 }
 
 /** Can the actor view audit logs / act as the notification recipient (CEO only)? */
@@ -127,12 +157,17 @@ export function userVisibilityFilter(actor: SessionUser) {
   switch (actor.role) {
     case "CEO":
       return {};
-    case "MANAGER":
-      return { role: { notIn: ["CEO", "MANAGER"] as Role[] } };
     case "LOCATION_MANAGER":
+      if (!actor.locationId) return { id: "__none__" };
       return {
         locationId: actor.locationId,
-        role: { notIn: ["CEO", "MANAGER", "LOCATION_MANAGER"] as Role[] },
+        role: { notIn: ["CEO", "LOCATION_MANAGER"] as Role[] },
+      };
+    case "LOCATION_ADMIN":
+      if (!actor.locationId) return { id: "__none__" };
+      return {
+        locationId: actor.locationId,
+        role: { notIn: ["CEO", "LOCATION_MANAGER", "LOCATION_ADMIN"] as Role[] },
       };
     case "COORDINATOR":
       return { coordinatorId: actor.id, role: "CONSULTANT" as Role };

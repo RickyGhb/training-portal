@@ -23,14 +23,16 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Notifications", href: "/notifications", enabled: true },
         { label: "Audit Logs", href: "/audit-logs", enabled: true },
       ];
-    case "MANAGER":
+    case "LOCATION_MANAGER":
       return [
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
+        { label: "Training Paths", href: "/catalog/training-paths", enabled: true },
+        { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
       ];
-    case "LOCATION_MANAGER":
+    case "LOCATION_ADMIN":
       return [
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },

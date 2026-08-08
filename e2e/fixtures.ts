@@ -22,8 +22,8 @@ export const DEMO_PASSWORD = "Demo#2026!";
 
 export const DEMO_USERS = {
   ceo: { username: "tempadmin", role: "CEO" as const },
-  manager: { username: "arivera", role: "MANAGER" as const },
-  locationManager: { username: "mlee", role: "LOCATION_MANAGER" as const },
+  manager: { username: "arivera", role: "LOCATION_MANAGER" as const },
+  locationManager: { username: "mlee", role: "LOCATION_ADMIN" as const },
   coordinator: { username: "tbrooks", role: "COORDINATOR" as const },
   consultant: { username: "spatel", role: "CONSULTANT" as const },
 };

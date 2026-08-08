@@ -9,7 +9,7 @@ export default async function ManagersPage() {
   if (actor.role !== "CEO") redirect("/dashboard");
 
   const managers = await prisma.user.findMany({
-    where: { role: "MANAGER", deletedAt: null },
+    where: { role: "LOCATION_MANAGER", deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 
@@ -25,8 +25,8 @@ export default async function ManagersPage() {
 
   return (
     <div>
-      <h1 className="page-title">Managers</h1>
-      <p className="page-subtitle">Global operational role below CEO.</p>
+      <h1 className="page-title">Location Managers</h1>
+      <p className="page-subtitle">Each Location Manager is assigned to exactly one location.</p>
 
       <UserTable rows={rows} currentUserId={actor.id} />
     </div>

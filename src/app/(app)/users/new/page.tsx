@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import { userVisibilityFilter, creatableRoles } from "@/lib/auth/rbac";
+import { userVisibilityFilter, creatableRoles, locationAssignmentModeFor } from "@/lib/auth/rbac";
 import { CreateUserForm } from "@/components/users/CreateUserForm";
 
 export default async function NewUserPage() {
@@ -11,7 +11,10 @@ export default async function NewUserPage() {
   const allowedRoles = creatableRoles(actor.role);
   if (allowedRoles.length === 0) redirect("/dashboard");
 
-  const needsLocations = allowedRoles.some((r) => r === "LOCATION_MANAGER" || r === "COORDINATOR");
+  const needsLocations = allowedRoles.some((r) => {
+    const mode = locationAssignmentModeFor(actor.role, r);
+    return mode === "required" || mode === "optional";
+  });
   const needsCoordinators = allowedRoles.includes("CONSULTANT");
 
   const [locations, coordinators] = await Promise.all([

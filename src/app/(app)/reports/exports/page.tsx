@@ -21,7 +21,7 @@ export default async function ExportsPage({
   };
 
   const [locations, coordinators, trainingPaths] = await Promise.all([
-    actor.role === "CEO" || actor.role === "MANAGER"
+    actor.role === "CEO"
       ? prisma.location.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
     prisma.user.findMany({
@@ -35,7 +35,7 @@ export default async function ExportsPage({
     <div>
       <h1 className="page-title">Export Consultant Report</h1>
       <p className="page-subtitle">
-        Choose filters, then download. Every export is logged, and Manager exports notify the CEO.
+        Choose filters, then download. Every export is logged, and Location Manager exports notify the CEO.
       </p>
 
       <form method="GET" action="/api/reports/export" className="mt-6 space-y-4 card">

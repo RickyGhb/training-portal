@@ -220,15 +220,15 @@ async function main() {
   console.log("Locations: Downtown Office (DTO), Riverside Office (RVO)");
 
   // --- Hierarchy ---
-  await upsertUser({ username: "arivera", firstName: "Alex", lastName: "Rivera", role: "MANAGER" }, demoPasswordHash, ceo.id);
+  await upsertUser({ username: "arivera", firstName: "Alex", lastName: "Rivera", role: "LOCATION_MANAGER" }, demoPasswordHash, ceo.id);
 
   await upsertUser(
-    { username: "mlee", firstName: "Morgan", lastName: "Lee", role: "LOCATION_MANAGER", locationCode: "DTO", managerUsername: "arivera" },
+    { username: "mlee", firstName: "Morgan", lastName: "Lee", role: "LOCATION_ADMIN", locationCode: "DTO", managerUsername: "arivera" },
     demoPasswordHash,
     ceo.id
   );
   await upsertUser(
-    { username: "ckim", firstName: "Casey", lastName: "Kim", role: "LOCATION_MANAGER", locationCode: "RVO", managerUsername: "arivera" },
+    { username: "ckim", firstName: "Casey", lastName: "Kim", role: "LOCATION_ADMIN", locationCode: "RVO", managerUsername: "arivera" },
     demoPasswordHash,
     ceo.id
   );

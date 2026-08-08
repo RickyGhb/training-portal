@@ -19,12 +19,19 @@ test.describe("RBAC route boundaries", () => {
     }
   });
 
-  test("Manager cannot reach CEO-only Locations or catalog structure pages", async ({ page }) => {
+  test("Location Manager cannot reach CEO-only Locations page", async ({ page }) => {
     await loginAs(page, DEMO_USERS.manager.username);
 
-    for (const path of ["/locations", "/catalog/training-paths"]) {
+    await page.goto("/locations");
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
+
+  test("Location Manager can reach catalog structure pages (Training Paths, Courses)", async ({ page }) => {
+    await loginAs(page, DEMO_USERS.manager.username);
+
+    for (const path of ["/catalog/training-paths", "/catalog/courses"]) {
       await page.goto(path);
-      await expect(page).toHaveURL(/\/dashboard/);
+      await expect(page).toHaveURL(new RegExp(path.replace(/\//g, "\\/")));
     }
   });
 

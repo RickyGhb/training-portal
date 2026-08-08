@@ -7,10 +7,10 @@ import { UserTable, type UserRow } from "@/components/users/UserTable";
 export default async function LocationManagersPage() {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
-  if (actor.role !== "CEO" && actor.role !== "MANAGER") redirect("/dashboard");
+  if (actor.role !== "CEO" && actor.role !== "LOCATION_MANAGER") redirect("/dashboard");
 
   const locationManagers = await prisma.user.findMany({
-    where: { role: "LOCATION_MANAGER", deletedAt: null, ...userVisibilityFilter(actor) },
+    where: { role: "LOCATION_ADMIN", deletedAt: null, ...userVisibilityFilter(actor) },
     orderBy: { createdAt: "desc" },
     include: { location: true },
   });
@@ -28,7 +28,7 @@ export default async function LocationManagersPage() {
 
   return (
     <div>
-      <h1 className="page-title">Location Managers</h1>
+      <h1 className="page-title">Location Admins</h1>
       <p className="page-subtitle">Restricted to exactly one location each.</p>
 
       <UserTable rows={rows} showLocation currentUserId={actor.id} />

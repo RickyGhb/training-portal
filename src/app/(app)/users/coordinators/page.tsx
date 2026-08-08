@@ -7,7 +7,7 @@ import { UserTable, type UserRow } from "@/components/users/UserTable";
 export default async function CoordinatorsPage() {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
-  if (actor.role !== "CEO" && actor.role !== "MANAGER" && actor.role !== "LOCATION_MANAGER") {
+  if (actor.role !== "CEO" && actor.role !== "LOCATION_MANAGER" && actor.role !== "LOCATION_ADMIN") {
     redirect("/dashboard");
   }
 

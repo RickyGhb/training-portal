@@ -27,8 +27,10 @@ export function AddVideoForm({
     >
       <input type="hidden" name="courseId" value={courseId} />
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Add video</label>
-        <select name="videoId" required className="w-64 field">
+        <label htmlFor="add-video-select" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Add video
+        </label>
+        <select id="add-video-select" name="videoId" required className="w-64 field">
           <option value="">Select a video...</option>
           {availableVideos.map((v) => (
             <option key={v.id} value={v.id}>

@@ -10,8 +10,11 @@ export function VideoForm() {
     <form action={formAction} className="card">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Title</label>
+          <label htmlFor="video-title" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Title
+          </label>
           <input
+            id="video-title"
             name="title"
             required
             className="w-56 field"
@@ -19,8 +22,11 @@ export function VideoForm() {
           />
         </div>
         <div className="flex-1 min-w-[20rem]">
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Google Drive share link</label>
+          <label htmlFor="video-drive-url" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Google Drive share link
+          </label>
           <input
+            id="video-drive-url"
             name="driveUrl"
             required
             className="w-full field"
@@ -30,16 +36,22 @@ export function VideoForm() {
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[16rem]">
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
+          <label htmlFor="video-description" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Description
+          </label>
           <input
+            id="video-description"
             name="description"
             className="w-full field"
             placeholder="Optional"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Duration (seconds)</label>
+          <label htmlFor="video-duration" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Duration (seconds)
+          </label>
           <input
+            id="video-duration"
             name="durationSeconds"
             type="number"
             min={1}
@@ -48,8 +60,11 @@ export function VideoForm() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Thumbnail URL</label>
+          <label htmlFor="video-thumbnail-url" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Thumbnail URL
+          </label>
           <input
+            id="video-thumbnail-url"
             name="thumbnailUrl"
             className="w-56 field"
             placeholder="Optional"

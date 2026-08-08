@@ -30,12 +30,17 @@ export function CourseRowActions({
 
       <FormModalButton action={updateCourseAction} hiddenFields={{ courseId: id }} title="Edit course" label="Edit">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Name</label>
-          <input name="name" required defaultValue={name} className="w-full field" />
+          <label htmlFor={`course-name-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Name
+          </label>
+          <input id={`course-name-${id}`} name="name" required defaultValue={name} className="w-full field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
+          <label htmlFor={`course-description-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Description
+          </label>
           <input
+            id={`course-description-${id}`}
             name="description"
             defaultValue={description ?? ""}
             className="w-full field"

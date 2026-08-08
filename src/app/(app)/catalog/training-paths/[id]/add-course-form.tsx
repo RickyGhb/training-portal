@@ -27,8 +27,10 @@ export function AddCourseForm({
     >
       <input type="hidden" name="trainingPathId" value={trainingPathId} />
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Add course</label>
-        <select name="courseId" required className="w-64 field">
+        <label htmlFor="add-course-select" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Add course
+        </label>
+        <select id="add-course-select" name="courseId" required className="w-64 field">
           <option value="">Select a course...</option>
           {availableCourses.map((c) => (
             <option key={c.id} value={c.id}>

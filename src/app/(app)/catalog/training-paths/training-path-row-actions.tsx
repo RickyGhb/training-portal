@@ -37,12 +37,17 @@ export function TrainingPathRowActions({
         label="Edit"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Name</label>
-          <input name="name" required defaultValue={name} className="w-full field" />
+          <label htmlFor={`training-path-name-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Name
+          </label>
+          <input id={`training-path-name-${id}`} name="name" required defaultValue={name} className="w-full field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
+          <label htmlFor={`training-path-description-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Description
+          </label>
           <input
+            id={`training-path-description-${id}`}
             name="description"
             defaultValue={description ?? ""}
             className="w-full field"

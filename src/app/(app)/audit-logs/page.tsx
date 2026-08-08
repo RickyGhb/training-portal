@@ -93,8 +93,10 @@ export default async function AuditLogsPage({
 
       <form method="GET" className="mt-6 flex flex-wrap items-end gap-3 card">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Action type</label>
-          <select name="actionType" defaultValue={actionType ?? ""} className="w-56 field">
+          <label htmlFor="audit-action-type" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Action type
+          </label>
+          <select id="audit-action-type" name="actionType" defaultValue={actionType ?? ""} className="w-56 field">
             <option value="">All</option>
             {ACTION_TYPES.map((a) => (
               <option key={a} value={a}>
@@ -104,12 +106,16 @@ export default async function AuditLogsPage({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">From</label>
-          <input type="date" name="from" defaultValue={typeof sp.from === "string" ? sp.from : ""} className="field" />
+          <label htmlFor="audit-from" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            From
+          </label>
+          <input id="audit-from" type="date" name="from" defaultValue={typeof sp.from === "string" ? sp.from : ""} className="field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">To</label>
-          <input type="date" name="to" defaultValue={typeof sp.to === "string" ? sp.to : ""} className="field" />
+          <label htmlFor="audit-to" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            To
+          </label>
+          <input id="audit-to" type="date" name="to" defaultValue={typeof sp.to === "string" ? sp.to : ""} className="field" />
         </div>
         <button type="submit" className="btn-primary">
           Apply

@@ -42,8 +42,10 @@ export default async function ExportsPage({
         <div className="flex flex-wrap gap-3">
           {locations.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Location</label>
-              <select name="locationId" defaultValue={defaults.locationId} className="w-44 field">
+              <label htmlFor="export-location" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                Location
+              </label>
+              <select id="export-location" name="locationId" defaultValue={defaults.locationId} className="w-44 field">
                 <option value="">All</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -55,8 +57,10 @@ export default async function ExportsPage({
           )}
           {coordinators.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Coordinator</label>
-              <select name="coordinatorId" defaultValue={defaults.coordinatorId} className="w-44 field">
+              <label htmlFor="export-coordinator" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                Coordinator
+              </label>
+              <select id="export-coordinator" name="coordinatorId" defaultValue={defaults.coordinatorId} className="w-44 field">
                 <option value="">All</option>
                 {coordinators.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -67,8 +71,10 @@ export default async function ExportsPage({
             </div>
           )}
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Training path</label>
-            <select name="trainingPathId" defaultValue={defaults.trainingPathId} className="w-44 field">
+            <label htmlFor="export-training-path" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+              Training path
+            </label>
+            <select id="export-training-path" name="trainingPathId" defaultValue={defaults.trainingPathId} className="w-44 field">
               <option value="">All</option>
               {trainingPaths.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -78,8 +84,10 @@ export default async function ExportsPage({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Status</label>
-            <select name="status" defaultValue={defaults.status} className="w-40 field">
+            <label htmlFor="export-status" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+              Status
+            </label>
+            <select id="export-status" name="status" defaultValue={defaults.status} className="w-40 field">
               <option value="">Active + deactivated</option>
               <option value="ACTIVE">Active only</option>
               <option value="DEACTIVATED">Deactivated only</option>

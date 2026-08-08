@@ -26,8 +26,10 @@ export function AssignPathButton({
       label={currentPathName ? "Change" : "Assign a training path"}
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Training path</label>
-        <select name="trainingPathId" required className="w-full field">
+        <label htmlFor="assign-training-path" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Training path
+        </label>
+        <select id="assign-training-path" name="trainingPathId" required className="w-full field">
           <option value="">Select...</option>
           {paths.map((p) => (
             <option key={p.id} value={p.id}>

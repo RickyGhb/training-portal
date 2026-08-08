@@ -75,8 +75,11 @@ export function BulkReassignForm({
 
       <div className="mt-4 flex items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Reassign selected to</label>
+          <label htmlFor="reassign-coordinator" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Reassign selected to
+          </label>
           <select
+            id="reassign-coordinator"
             name="newCoordinatorId"
             required
             className="w-64 field"

@@ -9,8 +9,11 @@ export function LocationForm() {
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 card">
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Name</label>
+        <label htmlFor="location-name" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Name
+        </label>
         <input
+          id="location-name"
           name="name"
           required
           className="w-48 field"
@@ -18,8 +21,11 @@ export function LocationForm() {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Code</label>
+        <label htmlFor="location-code" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Code
+        </label>
         <input
+          id="location-code"
           name="code"
           required
           className="w-32 field"

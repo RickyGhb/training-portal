@@ -25,20 +25,28 @@ export function VideoRowActions({
     <div className="flex items-center justify-end gap-3">
       <FormModalButton action={updateVideoAction} hiddenFields={{ videoId: id }} title="Edit video" label="Edit">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Title</label>
-          <input name="title" required defaultValue={title} className="w-full field" />
+          <label htmlFor={`video-title-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Title
+          </label>
+          <input id={`video-title-${id}`} name="title" required defaultValue={title} className="w-full field" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
+          <label htmlFor={`video-description-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Description
+          </label>
           <input
+            id={`video-description-${id}`}
             name="description"
             defaultValue={description ?? ""}
             className="w-full field"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Duration (seconds)</label>
+          <label htmlFor={`video-duration-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Duration (seconds)
+          </label>
           <input
+            id={`video-duration-${id}`}
             name="durationSeconds"
             type="number"
             min={1}
@@ -47,8 +55,11 @@ export function VideoRowActions({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Thumbnail URL</label>
+          <label htmlFor={`video-thumbnail-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Thumbnail URL
+          </label>
           <input
+            id={`video-thumbnail-${id}`}
             name="thumbnailUrl"
             defaultValue={thumbnailUrl ?? ""}
             className="w-full field"

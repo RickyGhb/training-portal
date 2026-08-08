@@ -9,8 +9,11 @@ export function TrainingPathForm() {
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 card">
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Name</label>
+        <label htmlFor="training-path-name" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Name
+        </label>
         <input
+          id="training-path-name"
           name="name"
           required
           className="w-56 field"
@@ -18,8 +21,11 @@ export function TrainingPathForm() {
         />
       </div>
       <div className="flex-1 min-w-[16rem]">
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Description</label>
+        <label htmlFor="training-path-description" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Description
+        </label>
         <input
+          id="training-path-description"
           name="description"
           className="w-full field"
           placeholder="Optional"

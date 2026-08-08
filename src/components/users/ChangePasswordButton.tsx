@@ -23,16 +23,22 @@ export function ChangePasswordButton() {
       className="w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-shell-text)]/80 transition-colors hover:bg-white/[0.06] hover:text-[var(--color-shell-text)]"
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Current password</label>
-        <input name="currentPassword" type="password" required className="w-full field" />
+        <label htmlFor="change-password-current" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Current password
+        </label>
+        <input id="change-password-current" name="currentPassword" type="password" required className="w-full field" />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">New password</label>
-        <input name="newPassword" type="password" required className="w-full field" />
+        <label htmlFor="change-password-new" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          New password
+        </label>
+        <input id="change-password-new" name="newPassword" type="password" required className="w-full field" />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">Confirm new password</label>
-        <input name="confirmPassword" type="password" required className="w-full field" />
+        <label htmlFor="change-password-confirm" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Confirm new password
+        </label>
+        <input id="change-password-confirm" name="confirmPassword" type="password" required className="w-full field" />
       </div>
     </FormModalButton>
   );

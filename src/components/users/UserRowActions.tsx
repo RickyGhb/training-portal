@@ -36,8 +36,11 @@ export function UserRowActions({
         label="Edit username"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">New username</label>
+          <label htmlFor={`new-username-${userId}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            New username
+          </label>
           <input
+            id={`new-username-${userId}`}
             name="newUsername"
             required
             defaultValue={username}
@@ -55,8 +58,11 @@ export function UserRowActions({
         submitLabel="Reset"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-ink)]">New password</label>
+          <label htmlFor={`reset-password-${userId}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            New password
+          </label>
           <input
+            id={`reset-password-${userId}`}
             name="newPassword"
             type="text"
             required

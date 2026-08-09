@@ -7,6 +7,7 @@ import { getPrimaryTrainingPath, getResolvedCourses, getConsultantProgress } fro
 import { StatusBadge } from "@/components/ui/Badge";
 import { UsernameEditButton } from "@/components/users/UsernameEditButton";
 import { VisaDobForm } from "@/components/users/VisaDobForm";
+import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
 import { ProfileFieldsForm } from "@/app/(app)/profile/ProfileFieldsForm";
 import { AssignPathButton } from "./assign-path-button";
 import { ExtraCourses } from "./extra-courses";
@@ -63,6 +64,8 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         {target.phone ? ` · ${target.phone}` : ""}
         {target.location ? ` · ${target.location.name}` : ""}
         {target.coordinator ? ` · Coordinator: ${target.coordinator.firstName} ${target.coordinator.lastName}` : ""}
+        {target.offshoreOffice ? ` · Offshore Office: ${OFFSHORE_OFFICE_LABELS[target.offshoreOffice]}` : ""}
+        {target.technology ? ` · Technology: ${target.technology}` : ""}
       </p>
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Edit profile</h2>

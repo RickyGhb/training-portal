@@ -2,7 +2,11 @@
 
 ## Project Overview
 
-**Training Portal** is a private enterprise training management system built to facilitate organizational training paths, course management, and consultant progress tracking. It provides role-based access control with five permission tiers (CEO, Location Manager, Location Admin, Coordinator, Consultant) and enables structured training delivery across distributed teams.
+**Training Portal** is a private enterprise training management system built to facilitate organizational training paths, course management, and consultant progress tracking. It provides role-based access control across **nine** permission tiers and enables structured training delivery across distributed teams, from initial course assignment through a post-training placement pipeline (Trainer demo feedback + independent Otter Team sign-off) into "In Marketing" status.
+
+Two parallel role hierarchies exist side by side:
+- **Location hierarchy** (the original five): CEO, Location Manager, Location Admin, Coordinator, Consultant — scoped by the `Location` model and `locationId` chain.
+- **Offshore/placement roles** (added 2026-08-09): Offshore Manager, Offshore Team Lead, Trainer, Otter Team — scoped by the separate `OffshoreOffice` enum (`LOCATION_1`/`LOCATION_2`) and direct per-consultant assignment FKs, not by `locationId`. See "Role-Based Access Control" below for why these are deliberately kept as a separate scoping axis rather than folded into the location hierarchy.
 
 **Current Version:** 0.1.0
 **Status:** Live in production, pilot scale
@@ -45,16 +49,20 @@ This file is the deep-reference doc. For narrative/onboarding versions of the sa
 
 ## Database Schema
 
-Source of truth: `prisma/schema.prisma`. Single migration history in `prisma/migrations/`: `20260807051647_init` (full initial schema) and `20260808212645_rename_manager_roles` (the `Role` enum rename, via `ALTER TYPE ... RENAME VALUE` — renames existing rows in place, no data migration needed).
+Source of truth: `prisma/schema.prisma`. Migration history in `prisma/migrations/`: `20260807051647_init` (full initial schema), `20260808212645_rename_manager_roles` (the `Role` enum rename, via `ALTER TYPE ... RENAME VALUE` — renames existing rows in place, no data migration needed), and `20260809190852_add_offshore_trainer_otter_roles` (the four new roles, their self-relation FKs, `TrainerFeedback`/`OtterFeedback`, `MarketingStatus`).
 
 ### Core Entities
 
 **User**
-- Roles: `CEO`, `LOCATION_MANAGER`, `LOCATION_ADMIN`, `COORDINATOR`, `CONSULTANT`
+- Roles: `CEO`, `LOCATION_MANAGER`, `LOCATION_ADMIN`, `COORDINATOR`, `CONSULTANT`, `OFFSHORE_MANAGER`, `OFFSHORE_TEAM_LEAD`, `TRAINER`, `OTTER_TEAM`
 - Status: `ACTIVE`, `DEACTIVATED`, `DELETED` (soft delete — `deletedAt` timestamp set, row kept for audit/reporting)
-- Hierarchy self-relations: `managerId` (→ a user's Location Manager supervisor), `locationManagerId` (→ a user's Location Admin supervisor), `coordinatorId` (→ a consultant's owning Coordinator). **These FK column names predate the 2026-08-08 role rename and were deliberately left as-is** — `managerId` still means "the Location Manager above this user," not literally a role called "Manager."
+- Location-hierarchy self-relations: `managerId` (→ a user's Location Manager supervisor), `locationManagerId` (→ a user's Location Admin supervisor), `coordinatorId` (→ a consultant's owning Coordinator). **These FK column names predate the 2026-08-08 role rename and were deliberately left as-is** — `managerId` still means "the Location Manager above this user," not literally a role called "Manager."
+- Offshore/placement self-relations (added 2026-08-09), each `onDelete: SetNull` at the User-level FK: `offshoreTeamLeadId` (→ the Offshore Team Lead a Consultant is assigned to), `trainerUserId` (→ the one Trainer assigned to a Consultant — explicitly single-assignment, not a technology-match lookup), `otterTeamUserId` (→ the one Otter Team member assigned to a Consultant). Offshore Manager/Team Lead's own office assignment uses `offshoreOffice` directly (no self-relation), same field the Consultant uses.
 - `usernameLower` is a separate enforced-lowercase mirror column (unique) so username lookups/uniqueness are case-insensitive without needing a citext extension.
-- Fields: id, firstName, lastName, username, usernameLower, passwordHash, email, phone, status, locationId, managerId, locationManagerId, coordinatorId, createdByUserId, createdAt, updatedAt, deletedAt
+- Consultant-only fields (added earlier on 2026-08-09, before the role work): `offshoreOffice` (`OffshoreOffice?`: `LOCATION_1`/`LOCATION_2`), `technology` (free string — also used non-Consultant by Trainer, to record which technology they teach), `visaType` (`VisaType?`), `dateOfBirth` (`DateTime?`).
+- `calendlyLink` (`String?`, all roles but practically only set by Trainer/Coordinator) — self-service, validated to `https?://` only (see the XSS note under Known Limitations/fixed issues below).
+- `marketingStatus` (`MarketingStatus`, default `IN_TRAINING`) — Consultant-only in practice; see "Post-Training Placement Pipeline" below.
+- Fields: id, firstName, lastName, username, usernameLower, passwordHash, email, phone, status, locationId, managerId, locationManagerId, coordinatorId, offshoreOffice, offshoreTeamLeadId, trainerUserId, otterTeamUserId, calendlyLink, marketingStatus, technology, visaType, dateOfBirth, createdByUserId, createdAt, updatedAt, deletedAt
 
 **Location**
 - Business units/branches. Only CEO can create/archive them (`/locations`).
@@ -77,23 +85,34 @@ Source of truth: `prisma/schema.prisma`. Single migration history in `prisma/mig
 - **ConsultantExtraCourse**: ad-hoc course assignments, unique per (consultant, course) pair, cascades from both consultant and course
 - **VideoCompletion**: one row per (consultant, video) completion, cascades from both consultant and video
 
+**Post-Training Placement Pipeline (added 2026-08-09)**
+- **TrainerFeedback**: `id, consultantUserId (Cascade), trainerUserId (Restrict), verdict (FeedbackVerdict), notes, createdAt`. One row per demo attempt — history is kept, never overwritten; the pipeline always reads the *latest* row per consultant (`orderBy createdAt desc, take 1`).
+- **OtterFeedback**: identical shape (`consultantUserId`, `otterUserId`, `verdict`, `notes`, `createdAt`) — the second, independent sign-off.
+- Both feedback tables cascade on the consultant side but **Restrict** on the trainer/otter side (the feedback author) — an active Trainer/Otter Team account can't be deleted while their feedback history still references it.
+- See "Post-Training Placement Pipeline" under Key Features for the full rollup logic (`src/lib/marketingReadiness.ts`).
+
 **Audit & Notifications**
-- **AuditLog**: 26 `AuditActionType` values (see enum below). `actorUserId`/`targetUserId`/`locationId`/`trainingPathId`/`courseId`/`videoId` are all **optional FKs with no `onDelete` clause (Postgres default: Restrict)** — meaning any of those referenced rows (a user, location, course, etc.) cannot be deleted while an AuditLog row still points to it. Deleting such rows (e.g. cleanup scripts) must delete/reassign the referencing AuditLog rows first.
-- **Notification**: three types — `REPORT_EXPORTED`, `PASSWORD_RESET`, `USER_DELETED`. `sourceAuditLogId` is also Restrict (not cascade), same caveat.
+- **AuditLog**: 30 `AuditActionType` values (see enum below). `actorUserId`/`targetUserId`/`locationId`/`trainingPathId`/`courseId`/`videoId` are all **optional FKs with no `onDelete` clause (Postgres default: Restrict)** — meaning any of those referenced rows (a user, location, course, etc.) cannot be deleted while an AuditLog row still points to it. Deleting such rows (e.g. cleanup scripts) must delete/reassign the referencing AuditLog rows first. `MARKETING_STATUS_CHANGED` rows are written with `actorUserId: null` (system-triggered, not a direct user action).
+- **Notification**: four types — `REPORT_EXPORTED`, `PASSWORD_RESET`, `USER_DELETED`, `MARKETING_READY`. `sourceAuditLogId` is also Restrict (not cascade), same caveat.
 - **Session**: token-hash storage (`onDelete: Cascade` from the user side — deleting a user auto-clears their sessions).
 
 **Enums:**
-- `Role`: CEO, LOCATION_MANAGER, LOCATION_ADMIN, COORDINATOR, CONSULTANT
+- `Role`: CEO, LOCATION_MANAGER, LOCATION_ADMIN, COORDINATOR, CONSULTANT, OFFSHORE_MANAGER, OFFSHORE_TEAM_LEAD, TRAINER, OTTER_TEAM
 - `UserStatus`: ACTIVE, DEACTIVATED, DELETED
 - `ContentStatus`: ACTIVE, ARCHIVED
-- `AuditActionType` (26): USER_CREATED, USERNAME_CHANGED, PASSWORD_RESET, USER_DEACTIVATED, USER_REACTIVATED, USER_DELETED, TRAINING_PATH_ASSIGNED, TRAINING_PATH_CHANGED, EXTRA_COURSE_ASSIGNED, EXTRA_COURSE_REMOVED, CONSULTANT_REASSIGNED (defined but not currently written by any code path — `CONSULTANTS_BULK_REASSIGNED` is used instead for the actual bulk-reassign feature), CONSULTANTS_BULK_REASSIGNED, LOCATION_CREATED, LOCATION_UPDATED, TRAINING_PATH_CREATED, TRAINING_PATH_UPDATED, TRAINING_PATH_DELETED, COURSE_CREATED, COURSE_UPDATED, COURSE_DELETED, VIDEO_CREATED, VIDEO_UPDATED, VIDEO_DELETED, REPORT_EXPORTED, LOGIN_SUCCEEDED, LOGIN_FAILED
-- `NotificationType`: REPORT_EXPORTED, PASSWORD_RESET, USER_DELETED
+- `OffshoreOffice`: LOCATION_1, LOCATION_2 — deliberately **not** the `Location` model (business-unit branches); this is a separate, simpler two-value split used only by the offshore/placement roles and the Consultant's own office assignment
+- `VisaType`: CPT, INITIAL_OPT, STEM_OPT, H1B, H4EAD, GC, US_CITIZEN
+- `MarketingStatus`: IN_TRAINING, IN_MARKETING
+- `FeedbackVerdict`: READY, NOT_READY
+- `AuditActionType` (30): USER_CREATED, USERNAME_CHANGED, PASSWORD_RESET, USER_DEACTIVATED, USER_REACTIVATED, USER_DELETED, TRAINING_PATH_ASSIGNED, TRAINING_PATH_CHANGED, EXTRA_COURSE_ASSIGNED, EXTRA_COURSE_REMOVED, CONSULTANT_REASSIGNED (defined but not currently written by any code path — `CONSULTANTS_BULK_REASSIGNED` is used instead for the actual bulk-reassign feature), CONSULTANTS_BULK_REASSIGNED, LOCATION_CREATED, LOCATION_UPDATED, TRAINING_PATH_CREATED, TRAINING_PATH_UPDATED, TRAINING_PATH_DELETED, COURSE_CREATED, COURSE_UPDATED, COURSE_DELETED, VIDEO_CREATED, VIDEO_UPDATED, VIDEO_DELETED, REPORT_EXPORTED, LOGIN_SUCCEEDED, LOGIN_FAILED, TRAINER_FEEDBACK_SUBMITTED, OTTER_FEEDBACK_SUBMITTED, MARKETING_STATUS_CHANGED, TEAM_LEAD_REASSIGNED
+- `NotificationType`: REPORT_EXPORTED, PASSWORD_RESET, USER_DELETED, MARKETING_READY
 
 ### Cascade behavior cheat sheet (matters when writing any deletion logic)
 
-- **Cascades automatically** on User delete: Session, VideoCompletion (consultant side), ConsultantTrainingAssignment (consultant side), ConsultantExtraCourse (consultant side).
+- **Cascades automatically** on User delete: Session, VideoCompletion (consultant side), ConsultantTrainingAssignment (consultant side), ConsultantExtraCourse (consultant side), TrainerFeedback/OtterFeedback (consultant side only).
 - **Cascades automatically** on Course/Video/TrainingPath delete: CourseVideo, TrainingPathCourse, ConsultantExtraCourse (course side), VideoCompletion (video side).
-- **No cascade (Restrict), must delete/reassign first**: every AuditLog FK, Notification.sourceAuditLogId, and the User self-relations (managerId/locationManagerId/coordinatorId) — a parent User can't be deleted while a child User row still references it, so bulk user deletion must go leaf-to-root (consultants → coordinators → location admins → location manager).
+- **`SetNull`** on User delete: `offshoreTeamLeadId`/`trainerUserId`/`otterTeamUserId` on any Consultant that referenced the deleted user — deleting a Trainer/Team Lead/Otter Team member un-assigns their consultants rather than blocking the delete.
+- **No cascade (Restrict), must delete/reassign first**: every AuditLog FK, Notification.sourceAuditLogId, the User self-relations (managerId/locationManagerId/coordinatorId), and TrainerFeedback.trainerUserId/OtterFeedback.otterUserId (the feedback *author* side) — a parent User can't be deleted while a child User row still references it, so bulk user deletion must go leaf-to-root (consultants → coordinators → location admins → location manager), and `scripts/e2e-cleanup-disposable-users.ts` clears TrainerFeedback/OtterFeedback/Notification/AuditLog rows before deleting disposable test users for exactly this reason.
 
 ---
 
@@ -113,29 +132,41 @@ Central authorization in `src/lib/auth/rbac.ts` — every server action and page
 
 **Role Rank Hierarchy:**
 ```
-CEO (4) > LOCATION_MANAGER (3) > LOCATION_ADMIN (2) > COORDINATOR (1) > CONSULTANT (0)
+Location hierarchy:   CEO (4) > LOCATION_MANAGER (3) > LOCATION_ADMIN (2) > COORDINATOR (1) > CONSULTANT (0)
+Offshore hierarchy:   OFFSHORE_MANAGER (1) > OFFSHORE_TEAM_LEAD (0)
+No-report roles:      TRAINER (0), OTTER_TEAM (0) — manage no one, ranked at the Consultant tier
 ```
 
 > **Renamed 2026-08-08:** the old `MANAGER` role is now `LOCATION_MANAGER` ("Location Manager"), and the old `LOCATION_MANAGER` role is now `LOCATION_ADMIN` ("Location Admin"). At rename time each kept its own prior permission set; Location Manager's permissions were then further changed the same day to be location-scoped (previously org-wide/unscoped) and to gain catalog structure access (previously CEO-only).
 
+> **Added 2026-08-09 — Offshore Manager / Offshore Team Lead / Trainer / Otter Team.** These four are **deliberately not folded into the single `ROLE_RANK`/`canManageUser`/`userVisibilityFilter` hierarchy** the five location roles share — that hierarchy is built entirely around the `locationId` chain, and these roles are scoped by `offshoreOffice` or by a direct per-consultant assignment FK instead. Offshore Manager → Offshore Team Lead *is* a small hierarchy of its own (mirrors Coordinator → Consultant), which is why those two alone get non-zero, non-equal `ROLE_RANK` values — that lets `canCreateRole`/rank-comparison logic work between just that pair. Trainer and Otter Team manage no one and sit at the Consultant tier. Each of the four gets its own dedicated `canViewAsX` function below rather than overloading `canManageUser`.
+
 **Creatable Roles by Actor** (`CREATABLE_ROLES`, via `canCreateRole`/`creatableRoles`):
-- CEO: all five roles
+- CEO: all nine roles
 - LOCATION_MANAGER: Location Admin, Coordinator, Consultant
 - LOCATION_ADMIN: Coordinator, Consultant
 - COORDINATOR: Consultant
 - CONSULTANT: none
+- OFFSHORE_MANAGER: Offshore Team Lead
+- OFFSHORE_TEAM_LEAD, TRAINER, OTTER_TEAM: none
 
 **User Management Scope** (`canManageUser`):
 - CEO: everyone
 - LOCATION_MANAGER: everyone ranked below them (Location Admin, Coordinator, Consultant), **but only within their own assigned `locationId`** — a Location Manager with no location assigned manages no one (explicit null-guard, not an accidental "sees everyone" bug)
 - LOCATION_ADMIN: Coordinators/Consultants within the same `locationId`, same null-guard
 - COORDINATOR: only Consultants where `coordinatorId === actor.id`
-- CONSULTANT: no one (self-service actions are gated separately, not through `canManageUser`)
+- OFFSHORE_MANAGER: only Offshore Team Leads where `offshoreOffice === actor.offshoreOffice` — **any** Offshore Manager in an office can manage **any** Team Lead in that office, not just the one who created them (Team Leads are reassignable between Offshore Managers by design)
+- CONSULTANT, OFFSHORE_TEAM_LEAD, TRAINER, OTTER_TEAM: no one (all explicit `false` — none of these roles manage other users; a Consultant's self-service actions are gated separately, not through `canManageUser`)
 
 **Key Authorization Functions** (`src/lib/auth/rbac.ts`):
 - `isHigherOrEqualRank(a, b)` — rank comparison
 - `canCreateRole(actorRole, targetRole)` / `creatableRoles(actorRole)` — role creation matrix
 - `canManageUser(actor, target)` — the core scope check described above; `actor.id === target.id` always returns true (self-management, e.g. self-service password change, is allowed independent of rank)
+- `canViewAsOffshoreManager(actor, target)` — target is a Consultant, `target.offshoreOffice === actor.offshoreOffice`. Read access only — no edit/delete rights flow from this function.
+- `canManageTeamLead(actor, target)` — actor is `OFFSHORE_MANAGER`; delegates to `canManageUser` (same office-scope rule above), used for create/reassign/manage actions on Offshore Team Leads
+- `canViewAsTeamLead(actor, target)` — target is a Consultant explicitly assigned via `target.offshoreTeamLeadId === actor.id`
+- `canViewAsTrainer(actor, target)` — target is a Consultant explicitly assigned via `target.trainerUserId === actor.id`. **Direct-assignment check, not a technology-match lookup** — a Trainer only sees consultants assigned specifically to them, even if other consultants share their technology.
+- `canViewAsOtterTeam(actor, target)` — target is a Consultant explicitly assigned via `target.otterTeamUserId === actor.id`
 - `canAssignExtraCourses(actor, target)` — target must be a Consultant; Coordinator/Consultant actors excluded; otherwise delegates to `canManageUser`
 - `canAssignTrainingPath(actor, target)` — target must be a Consultant; Consultant actor excluded; otherwise delegates to `canManageUser`
 - `canExportReports(actorRole)` — CEO, Location Manager, Location Admin. The actual row-level scoping for exports comes from `consultantScopeFilter()` in `src/lib/reports.ts`, not from this function.
@@ -143,10 +174,11 @@ CEO (4) > LOCATION_MANAGER (3) > LOCATION_ADMIN (2) > COORDINATOR (1) > CONSULTA
 - `canManageCatalogStructure(actorRole)` — CEO, Location Manager. Deliberately global/unscoped (Course/TrainingPath have no `locationId`).
 - `canManageVideos(actorRole)` — CEO, Location Manager, Location Admin. Also global/unscoped.
 - `isCeo(actorRole)` — gates Audit Logs and Notifications (CEO-only recipient/viewer)
-- `userVisibilityFilter(actor)` — the Prisma `where` clause for "which users can this actor see" in list endpoints. CEO → `{}` (no filter). Location Manager/Location Admin → `{ locationId: actor.locationId, role: { notIn: [...] } }`, with an explicit `if (!actor.locationId) return { id: "__none__" }` guard so a location-less actor sees nobody rather than the Prisma `locationId: null` footgun (which would otherwise match every location-less user in the system). Coordinator → their own consultants. Consultant → only themselves.
-- `locationAssignmentModeFor(actorRole, targetRole)` — returns `"none" | "required" | "optional" | "inherit"`. Drives both whether `CreateUserForm` shows a location picker for a given target role, and (in `createStaffUserAction`) whether the server requires/accepts/auto-inherits a location. `"inherit"` means the new user silently gets the actor's own `locationId` with no picker shown (e.g. a Location Manager creating a Location Admin or Coordinator always lands them in the Location Manager's own location).
+- `userVisibilityFilter(actor)` — the Prisma `where` clause for "which users can this actor see" in list endpoints. CEO → `{}` (no filter). Location Manager/Location Admin → `{ locationId: actor.locationId, role: { notIn: [...] } }`, with an explicit `if (!actor.locationId) return { id: "__none__" }` guard so a location-less actor sees nobody rather than the Prisma `locationId: null` footgun (which would otherwise match every location-less user in the system). Coordinator → their own consultants. Consultant → only themselves. **Caveat:** this function's `role` key is a `{ notIn: [...] }` clause, not a single value — any caller that spreads `userVisibilityFilter(user)` into a `where` object *after* setting its own `role: "SOME_ROLE"` key will have that explicit role filter silently clobbered (spread-order footgun; see the `role: "COORDINATOR"` fix in `dashboard/page.tsx` for the pattern to follow — spread `userVisibilityFilter(user)` *first*, then set the specific `role` key last).
+- `locationAssignmentModeFor(actorRole, targetRole)` — returns `"none" | "required" | "optional" | "inherit"`. Drives both whether `CreateUserForm` shows a location picker for a given target role, and (in `createStaffUserAction`) whether the server requires/accepts/auto-inherits a location. `"inherit"` means the new user silently gets the actor's own `locationId` with no picker shown (e.g. a Location Manager creating a Location Admin or Coordinator always lands them in the Location Manager's own location). Returns `"none"` for all four offshore/placement roles (they use `offshoreOfficeAssignmentModeFor` instead).
+- `offshoreOfficeAssignmentModeFor(actorRole, targetRole)` — same return type, but governs the `OffshoreOffice` enum instead of the `Location` model. Offshore Manager → `"required"` (CEO must pick an office). Offshore Team Lead → `"inherit"` when created by an Offshore Manager (silently gets the creating manager's office), `"required"` otherwise. Everything else → `"none"`. (A Consultant's own `offshoreOffice` field is handled separately, hardcoded in `CreateUserForm`'s consultant branch and validated in `createConsultantSchema` — this function is never called for `role: "CONSULTANT"`.)
 
-**Type `ScopeSubject`** — the minimal shape (`id`, `role`, `locationId`, `coordinatorId`, `locationManagerId`, `managerId`) needed by the scope-check functions; used to pass a partial Prisma `User` row without over-fetching.
+**Type `ScopeSubject`** — the minimal shape needed by the scope-check functions (`id`, `role`, `locationId`, `coordinatorId`, `locationManagerId`, `managerId`, plus optional `offshoreOffice`, `offshoreTeamLeadId`, `trainerUserId`, `otterTeamUserId`); used to pass a partial Prisma `User` row without over-fetching.
 
 ---
 
@@ -179,7 +211,19 @@ src/
 │   │   ├── my-courses/                # Consultant-only: resolved course list → course detail → video player + mark-complete
 │   │   ├── reports/exports/page.tsx  # Filter form + CSV/XLSX download buttons (CEO, Location Manager, Location Admin)
 │   │   ├── notifications/            # CEO-only inbox
-│   │   └── audit-logs/page.tsx       # CEO-only, paginated (50/page), filterable by action type + date range
+│   │   ├── audit-logs/page.tsx       # CEO-only, paginated (50/page), filterable by action type + date range
+│   │   ├── location-overview/page.tsx # CEO (office dropdown) / Location Manager / Location Admin / Coordinator: In-Training vs. In-Marketing consultant split — see "Post-Training Placement Pipeline" below
+│   │   ├── offshore/
+│   │   │   ├── actions.ts            # assignConsultantToTeamLeadAction, reassignTeamLeadOfficeAction
+│   │   │   ├── consultants/page.tsx  # "Consultant Data" — Offshore Manager (own office) + CEO (any office); read-only except the per-row Team Lead assign dropdown
+│   │   │   ├── team-leads/page.tsx   # Offshore Manager (own office) + CEO (office picker): create/manage Offshore Team Leads, reassign their office
+│   │   │   └── my-consultants/page.tsx # Offshore Team Lead-only: consultants assigned to them
+│   │   ├── trainer/
+│   │   │   ├── actions.ts            # submitTrainerFeedbackAction
+│   │   │   └── consultants/page.tsx  # Trainer-only: consultants assigned to them, verdict + notes form
+│   │   └── otter/
+│   │       ├── actions.ts            # submitOtterFeedbackAction
+│   │       └── consultants/page.tsx  # Otter Team-only: consultants assigned to them, verdict + notes form
 │   └── api/
 │       └── reports/export/route.ts   # The one plain REST route (GET, not a server action) — streams CSV or XLSX
 ├── lib/
@@ -192,11 +236,14 @@ src/
 │   ├── roleLabels.ts                 # ROLE_LABELS — single source of truth for human-readable role names, imported everywhere a role is displayed (added 2026-08-08 to de-duplicate 3 copies)
 │   ├── content-resolution.ts         # getPrimaryTrainingPath/getResolvedCourses/getResolvedCourseDetail/getResolvedVideoDetail/getConsultantProgress — the "what can this consultant actually see" union logic
 │   ├── drive.ts                      # parseDriveLink() — Drive share URL → { fileId, embedUrl }, no Drive API call (URL parsing only)
-│   ├── audit.ts                      # logAudit(), notifyCeos()
+│   ├── audit.ts                      # logAudit(), notifyCeos(), notifyUser()
+│   ├── marketingReadiness.ts         # evaluateMarketingReadiness(consultantUserId) — the Trainer+Otter dual sign-off rollup, see Key Features below
+│   ├── offshoreOfficeLabels.ts       # OFFSHORE_OFFICE_LABELS — display labels for LOCATION_1/LOCATION_2
+│   ├── visaTypeLabels.ts             # VISA_TYPE_LABELS — display labels for VisaType enum
 │   ├── reports.ts                    # getDashboardAggregates(), getConsultantReportRows() — scope (consultantScopeFilter) and user filters combined via Prisma AND, never merged, so a filter can only narrow within scope, never widen it
 │   ├── errors.ts                     # UserFacingError — only errors deliberately thrown with this class get their .message shown to the client
 │   └── validation/
-│       ├── user.ts                   # optionalTrimmedString() (blank-string-to-undefined preprocessor), usernameSchema, nameSchema, createStaffUserSchema, createConsultantSchema, createLocationSchema
+│       ├── user.ts                   # optionalTrimmedString() (blank-string-to-undefined preprocessor), usernameSchema, nameSchema, createStaffUserSchema, createConsultantSchema, createLocationSchema, assignTrainerSchema, assignOtterTeamSchema, submitFeedbackSchema, calendlyLinkSchema (https?:// scheme-allowlisted, see security note below)
 │       └── catalog.ts                # trainingPathSchema, courseSchema, videoSchema, videoEditSchema
 └── components/
     ├── ui/
@@ -206,9 +253,13 @@ src/
     └── users/
         ├── UserTable.tsx             # Reusable table (used by the legacy per-role pages)
         ├── UserRowActions.tsx        # Edit username / reset password / deactivate-reactivate / delete, all via FormModalButton/ConfirmButton
-        ├── CreateUserForm.tsx        # One form for every creatable role; location field driven by locationAssignmentModeFor
+        ├── CreateUserForm.tsx        # One form for every creatable role; location field driven by locationAssignmentModeFor, offshore office field driven by offshoreOfficeAssignmentModeFor, optional Trainer/Otter Team pickers in the Consultant fragment
+        ├── TrainerAssignForm.tsx     # Reassign a Consultant's Trainer (consultant detail page)
+        ├── OtterAssignForm.tsx       # Reassign a Consultant's Otter Team member (consultant detail page)
         └── ChangePasswordButton.tsx  # Self-service password change (sidebar) — signs the user out everywhere including the current session
 ```
+
+Also: `src/app/(app)/profile/CalendlyLinkForm.tsx` — self-service Calendly link editor, rendered on `/profile` for Trainer/Coordinator; the Consultant's own `/profile` shows a "Schedule your demo" link-out to their assigned Trainer's link instead (read-only from the Consultant's side).
 
 ### Orphaned routes (real, worth knowing before changing nav or user-list logic)
 
@@ -260,8 +311,19 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 - Every AuditLog row optionally carries actor, target user, location, training path, course, and/or video context, plus a free-form `metadataJson` blob
 
 ### 7. Notifications
-- CEO-only recipients, three trigger events: a Location Manager exporting a report, any password reset (self or admin-initiated), any consultant deletion — nothing else pages the CEO
+- CEO-only *viewer* (`/notifications`), but **not** the only recipient role anymore — see Placement Pipeline notifications below, which go to Offshore Manager/Team Lead/Location Manager/Location Admin, not CEO. The CEO's own inbox still only fires on: a Location Manager exporting a report, any password reset (self or admin-initiated), any consultant deletion.
 - Unread-count badge in the sidebar nav item, mark-one-read / mark-all-read actions
+
+### 8. Post-Training Placement Pipeline (added 2026-08-09)
+Two independent, required sign-offs move a Consultant from `IN_TRAINING` to `IN_MARKETING`:
+- **Trainer feedback** (`/trainer/consultants`): each Trainer sees only the Consultants explicitly assigned to them (`trainerUserId`, one Trainer per Consultant — not a technology-based pool). After a demo, records a `READY`/`NOT_READY` verdict + optional notes (`TrainerFeedback`, history kept, never overwritten).
+- **Otter Team feedback** (`/otter/consultants`): same shape, same one-assignee-per-Consultant model, via `otterTeamUserId` (`OtterFeedback`).
+- **Rollup** (`src/lib/marketingReadiness.ts`, `evaluateMarketingReadiness()`): runs after every feedback submission. Re-derives from scratch (reads the *latest* Trainer verdict and *latest* Otter verdict for that Consultant) rather than tracking partial state — cheap enough at pilot scale. Flips `marketingStatus` to `IN_MARKETING` only when **both** latest verdicts are `READY` — no third sign-off, by design. Logs `MARKETING_STATUS_CHANGED` with `actorUserId: null` (system-triggered).
+- **Notification fan-out** on flip: every `ACTIVE` Offshore Manager matching the Consultant's `offshoreOffice`, the Consultant's `offshoreTeamLeadId` (if assigned), and every `ACTIVE` Location Manager/Location Admin matching the Consultant's `locationId` — all via `NotificationType.MARKETING_READY`. CEO is **not** a direct recipient of this one; they see aggregate state via `/location-overview` instead.
+- **Scheduling**: Consultants don't book inside the app. Trainer/Coordinator each paste their own Calendly link (`calendlyLink`, self-service via `/profile`, validated to an `https?://` scheme — see security note below) and the Consultant's `/profile` shows a "Schedule your demo" link-out to their assigned Trainer's link. No webhook, no booking record synced back — Zoom/Meet link generation (if any) is a Calendly-side setting on the Trainer's own Calendly account, entirely outside this app.
+- **Location Overview** (`/location-overview`): CEO gets an office dropdown (`LOCATION_1`/`LOCATION_2`) plus In-Training/In-Marketing counts and lists for the selected office; Location Manager/Location Admin/Coordinator get the same split pre-scoped to their own manageable consultants (no dropdown). Consultant sees only their own status, inline on their personal `/dashboard` — never a list of others.
+
+**Security note (found + fixed 2026-08-09):** `calendlyLinkSchema` originally used a bare `z.string().url()`, which validates that a string parses as *some* URL but not its *scheme* — a `javascript:`/`data:` URI passed that check and would have rendered unsanitized into an `<a href>` on the Consultant's profile (stored XSS). Fixed with an explicit `/^https?:\/\//i` `.refine()` in `src/lib/validation/user.ts`. Verified both that the old check let the payload through and that the fix rejects it.
 
 ---
 
@@ -299,10 +361,37 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 
 ### CONSULTANT
 - **Training:** view and complete their own assigned courses/videos
-- **Dashboard:** personal progress overview (completion %, videos completed/pending, last activity) — never the org-wide report
+- **Dashboard:** personal progress overview (completion %, videos completed/pending, last activity) plus their own `marketingStatus` (In Training / In Marketing) — never the org-wide report
 - **My Courses:** resolved course list → course detail → video player, "Mark as Completed"
+- **Profile:** self-service field-change requests, plus (once assigned) a "Schedule your demo" link-out to their Trainer's Calendly link
 - **Constraints:** single active session; cannot see any other user; no administrative access at all
 - **Navigation:** 2 items — My Dashboard, My Courses
+
+### OFFSHORE_MANAGER (Offshore Manager — added 2026-08-09)
+- **Management:** none over Consultants (read-only); creates and manages Offshore Team Lead accounts within their own office, and can move a Consultant's assigned Team Lead
+- **Data access:** full read access to every field on Consultants whose `offshoreOffice` matches their own — name, contact info, DOB, visa type, technology, everything — but no edit/delete rights on Consultants themselves
+- **Constraints:** must be assigned exactly one `offshoreOffice` at creation (CEO-only creation); cannot see the other office's consultants; no catalog, export, or audit-log access
+- **Navigation:** 3 items — Dashboard, Consultant Data, Team Leads
+
+### OFFSHORE_TEAM_LEAD (Offshore Team Lead — added 2026-08-09)
+- **Management:** none — pure read access to the Consultants explicitly assigned to them by an Offshore Manager (`offshoreTeamLeadId`)
+- **Reassignment:** a Team Lead's own `offshoreOffice`, and which consultants are assigned to them, can both be changed by any Offshore Manager in their office — not permanently tied to whoever created them
+- **Constraints:** cannot create users, no catalog/export/audit-log access
+- **Navigation:** 2 items — Dashboard, My Consultants
+
+### TRAINER (added 2026-08-09)
+- **Management:** none — read access + feedback rights only, for Consultants explicitly assigned to them (`trainerUserId`, one Trainer per Consultant)
+- **Feedback:** records a `READY`/`NOT_READY` verdict + optional notes per demo (history kept)
+- **Scheduling:** self-service Calendly link on `/profile`, which the assigned Consultant(s) see as a "Schedule your demo" link-out
+- **Assigned a `technology`** at creation (which technology they teach) — informational/for the picker UI, not itself the basis of consultant visibility (that's the direct `trainerUserId` assignment)
+- **Constraints:** cannot create users, no catalog/export/audit-log access
+- **Navigation:** 2 items — Dashboard, My Consultants
+
+### OTTER_TEAM (Otter Team — added 2026-08-09)
+- **Management:** none — read access + feedback rights only, for Consultants explicitly assigned to them (`otterTeamUserId`, one Otter Team member per Consultant)
+- **Feedback:** records a `READY`/`NOT_READY` verdict + optional notes — the second, independent sign-off required (alongside Trainer) before a Consultant flips to "In Marketing"
+- **Constraints:** cannot create users, no catalog/export/audit-log access
+- **Navigation:** 2 items — Dashboard, My Consultants
 
 ---
 
@@ -310,13 +399,17 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 
 Defined in `src/lib/nav.ts` (`navItemsForRole(role)`). No `enabled: false` placeholders remain — every item currently in the nav is a live, working page.
 
-- **CEO (9):** Dashboard, Locations, User Management, Training Paths, Courses, Videos, Exports, Notifications, Audit Logs
-- **LOCATION_MANAGER — Location Manager (6):** Dashboard, User Management, Training Paths, Courses, Videos, Exports
-- **LOCATION_ADMIN — Location Admin (4):** Dashboard, User Management, Videos, Exports
-- **COORDINATOR (2):** Dashboard, User Management
+- **CEO (11):** Dashboard, Locations, User Management, Training Paths, Courses, Videos, Exports, Offshore Data, Location Overview, Notifications, Audit Logs
+- **LOCATION_MANAGER — Location Manager (7):** Dashboard, User Management, Training Paths, Courses, Videos, Exports, Location Overview
+- **LOCATION_ADMIN — Location Admin (5):** Dashboard, User Management, Videos, Exports, Location Overview
+- **COORDINATOR (3):** Dashboard, User Management, Location Overview
 - **CONSULTANT (2):** My Dashboard, My Courses
+- **OFFSHORE_MANAGER — Offshore Manager (3):** Dashboard, Consultant Data, Team Leads
+- **OFFSHORE_TEAM_LEAD — Offshore Team Lead (2):** Dashboard, My Consultants
+- **TRAINER (2):** Dashboard, My Consultants
+- **OTTER_TEAM — Otter Team (2):** Dashboard, My Consultants
 
-Bulk Reassignment, per-consultant detail, and the legacy per-role list pages are reachable by link-from-page or direct URL but are not top-level nav items — see "Orphaned routes" above.
+Bulk Reassignment, per-consultant detail, and the legacy per-role list pages are reachable by link-from-page or direct URL but are not top-level nav items — see "Orphaned routes" above. For the four offshore/placement roles, "Dashboard" in the nav is `/dashboard`, which immediately redirects to their real landing page (`/offshore/consultants`, `/offshore/my-consultants`, `/trainer/consultants`, `/otter/consultants` respectively) — `/dashboard` itself is built around the location-hierarchy reporting view these roles aren't part of.
 
 ---
 
@@ -353,6 +446,7 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 ### Database Migrations
 - `prisma/migrations/20260807051647_init/` — full initial schema
 - `prisma/migrations/20260808212645_rename_manager_roles/` — `ALTER TYPE "Role" RENAME VALUE 'LOCATION_MANAGER' TO 'LOCATION_ADMIN'` then `ALTER TYPE "Role" RENAME VALUE 'MANAGER' TO 'LOCATION_MANAGER'` (order matters — renaming `LOCATION_MANAGER` out of the way first avoids a collision)
+- `prisma/migrations/20260809190852_add_offshore_trainer_otter_roles/` — adds `OFFSHORE_MANAGER`/`OFFSHORE_TEAM_LEAD`/`TRAINER`/`OTTER_TEAM` to `Role`, the `offshoreTeamLeadId`/`trainerUserId`/`otterTeamUserId` self-relations (`SetNull`), `calendlyLink`/`marketingStatus`, `TrainerFeedback`/`OtterFeedback` tables, `MarketingStatus`/`FeedbackVerdict` enums, and the 4 new `AuditActionType`/1 new `NotificationType` values
 - The build does **not** run migrations automatically — after any schema change, run `prisma migrate deploy` by hand (locally or in CI) before/after deploying the dependent code
 - Lock file: `prisma/migrations/migration_lock.toml` (PostgreSQL)
 
@@ -380,6 +474,10 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 ### Known small bugs found during a full-codebase read (2026-08-08), not yet fixed
 - `src/app/(app)/catalog/courses/actions.ts` and `src/app/(app)/catalog/training-paths/actions.ts` still return the error string `"Only the CEO can manage courses."` / `"Only the CEO can manage training paths."` from their `requireCeo()` helper, even though the actual gate (`canManageCatalogStructure`) has allowed Location Manager too since 2026-08-08. The permission check itself is correct (delegates to `canManageCatalogStructure`); only the copy is stale, and only reachable if a non-CEO/non-Location-Manager somehow bypasses the page-level redirect and hits the action directly.
+
+### Bugs found + fixed during a full 9-role permission audit (2026-08-09)
+- **Dashboard "Coordinator" filter dropdown leaked non-Coordinator users.** `src/app/(app)/dashboard/page.tsx`'s coordinators query was `{ role: "COORDINATOR", ...userVisibilityFilter(user) }` — since `userVisibilityFilter` also returns its own `role` key (`{ notIn: [...] }`) for Location Manager/Location Admin, and object spread applies in declaration order, the later spread silently overwrote the explicit `role: "COORDINATOR"`. Result: Location Admins and Consultants appeared as selectable "Coordinator" filter options for those two actor roles (CEO was unaffected — `userVisibilityFilter(CEO)` returns `{}`). Fixed by spreading `userVisibilityFilter(user)` first and setting `role: "COORDINATOR"` last. Verified live with a fresh Location Manager test account. This is now the documented pattern to follow for any future caller that spreads `userVisibilityFilter` alongside its own `role` filter (see the RBAC section's `userVisibilityFilter` caveat above).
+- **`/users/management` didn't redirect the 4 new offshore/placement roles.** The page's guard only checked `actor.role === "CONSULTANT"`; Offshore Manager/Team Lead/Trainer/Otter Team could all reach it and see an empty, pointless "User Management" page (no data leak — `visibleRolesFor` already returned `[]` for them — but a dead end, since `/users/new`'s role picker was and is correctly locked down for these roles regardless). Fixed by extending the redirect to all 4, sending them through the existing `/dashboard` redirect chain to their real landing page instead. Verified live with a fresh Offshore Manager test account.
 
 ---
 
@@ -430,7 +528,7 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 - `docs/Admin-Guide.md` — day-to-day operations, deployment/redeploy steps, troubleshooting, security review notes
 - `docs/Build-Progress.md` — phase-by-phase build log (Phases 1–6, all complete)
 - `AGENTS.md` — Next.js 16 has breaking changes vs. training data; read `node_modules/next/dist/docs/` before writing framework-adjacent code. This file is regenerated by `next dev` — commit it as-is if it reappears in a diff.
-- **Note (2026-08-08):** the three `docs/*.md` files above still describe the pre-rename role names (Manager/Location Manager rather than Location Manager/Location Admin) and the pre-location-scoping Location Manager permissions — they were not updated in the same pass as this file. Treat this file (`CLAUDE.md`) as authoritative for current role names/permissions until those docs are refreshed too.
+- **Note (2026-08-08, still true 2026-08-09):** the three `docs/*.md` files above still describe the pre-rename role names (Manager/Location Manager rather than Location Manager/Location Admin), the pre-location-scoping Location Manager permissions, and predate the 2026-08-09 Offshore Manager/Team Lead/Trainer/Otter Team roles entirely. Treat this file (`CLAUDE.md`) as authoritative for current role names/permissions until those docs are refreshed too.
 
 ---
 
@@ -438,11 +536,12 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 1. Fix the two stale "Only the CEO can manage..." error strings (see "Known small bugs")
 2. Decide what to do with the orphaned legacy per-role user-list pages — delete them, redirect them to `/users/management`, or wire the per-consultant "Training & progress" link into the main `/users/management` table
-3. Refresh `docs/Getting-Started.md`, `docs/Admin-Guide.md`, `docs/Build-Progress.md` for the role rename + location-scoping (currently only this file reflects it)
+3. Refresh `docs/Getting-Started.md`, `docs/Admin-Guide.md`, `docs/Build-Progress.md` for the role rename + location-scoping + the 2026-08-09 offshore/placement roles (currently only this file reflects all of it)
 4. Consider a separate staging database before wider rollout
 5. Login rate-limiting and a self-service "forgot password" flow, if/when moving past pilot scale
 6. Expand Coordinator permissions (path/extra-course assignment) if the product calls for it
-7. Expand Notification recipients beyond CEO-only, if useful
+7. Expand CEO-inbox Notification triggers beyond report-export/password-reset/deletion, if useful (the Placement Pipeline's `MARKETING_READY` notifications already go to non-CEO roles, see Key Features)
+8. Revisit Vercel/Supabase tier as usage grows past pilot scale — more roles and a placement pipeline mean more concurrent sessions and writes; a real staging Supabase project is worth doing before onboarding real users at volume regardless (see "No separate staging database" above)
 
 ---
 
@@ -450,5 +549,5 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 For questions about the codebase structure, architectural decisions, or development workflow, refer to comments in key files (`src/lib/auth/rbac.ts`, `prisma/schema.prisma`, etc.) and `docs/Getting-Started.md`.
 
-**Last Updated:** 2026-08-08 — full-codebase read and rewrite, following the MANAGER→Location Manager / LOCATION_MANAGER→Location Admin role rename, Location Manager's location-scoped permissions, and removal of the 2026-08-07 demo dataset.
+**Last Updated:** 2026-08-09 — added the Offshore Manager / Offshore Team Lead / Trainer / Otter Team roles and the full post-training placement pipeline (dual Trainer+Otter sign-off, marketing-readiness rollup, Calendly link-out scheduling, Location Overview dashboard); documented the Consultant `technology`/`visaType`/`dateOfBirth`/`offshoreOffice` fields that were added earlier the same day but missed in the previous pass; fixed and documented two bugs found during a full 9-role permission audit (dashboard Coordinator-filter leak, `/users/management` dead-end for the new roles).
 **Generated by:** Cowork Claude Documentation Generator

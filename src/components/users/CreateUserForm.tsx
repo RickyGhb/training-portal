@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { Role } from "@/generated/prisma/client";
 import { createStaffUserAction, createConsultantAction } from "@/app/(app)/users/actions";
 import { suggestConsultantUsernameAction } from "@/app/(app)/users/username-suggestion";
-import { locationAssignmentModeFor } from "@/lib/auth/rbac";
+import { locationAssignmentModeFor, offshoreOfficeAssignmentModeFor } from "@/lib/auth/rbac";
 import { ROLE_LABELS } from "@/lib/roleLabels";
 import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
 import { TECHNOLOGY_OPTIONS, OTHER_TECHNOLOGY_VALUE, deriveOtherAbbrev } from "@/lib/technologyOptions";
@@ -14,6 +14,8 @@ const todayStr = new Date().toISOString().slice(0, 10);
 
 type Location = { id: string; name: string };
 type Coordinator = { id: string; firstName: string; lastName: string; username: string };
+type Trainer = { id: string; name: string; technology: string | null };
+type OtterTeamMember = { id: string; name: string };
 
 /**
  * One create-user form for every role an actor is allowed to create. The
@@ -26,11 +28,15 @@ export function CreateUserForm({
   actorRole,
   locations,
   coordinators,
+  trainers = [],
+  otterTeamMembers = [],
 }: {
   allowedRoles: Role[];
   actorRole: Role;
   locations: Location[];
   coordinators: Coordinator[];
+  trainers?: Trainer[];
+  otterTeamMembers?: OtterTeamMember[];
 }) {
   const [role, setRole] = useState<Role>(allowedRoles[0]);
 
@@ -59,6 +65,8 @@ export function CreateUserForm({
         actorRole={actorRole}
         locations={locations}
         coordinators={coordinators}
+        trainers={trainers}
+        otterTeamMembers={otterTeamMembers}
       />
     </div>
   );
@@ -69,16 +77,22 @@ function CreateUserFields({
   actorRole,
   locations,
   coordinators,
+  trainers,
+  otterTeamMembers,
 }: {
   role: Role;
   actorRole: Role;
   locations: Location[];
   coordinators: Coordinator[];
+  trainers: Trainer[];
+  otterTeamMembers: OtterTeamMember[];
 }) {
   const isConsultant = role === "CONSULTANT";
   const action = isConsultant ? createConsultantAction : createStaffUserAction.bind(null, role);
   const [state, formAction, pending] = useActionState(action, {});
   const locationMode = locationAssignmentModeFor(actorRole, role);
+  const officeMode = offshoreOfficeAssignmentModeFor(actorRole, role);
+  const isTrainer = role === "TRAINER";
 
   const [firstName, setFirstName] = useState("");
   const [techValue, setTechValue] = useState("");
@@ -257,29 +271,92 @@ function CreateUserFields({
                 className="w-full field"
               />
             </div>
-          </>
-        ) : (
-          (locationMode === "required" || locationMode === "optional") && (
             <div>
-              <label htmlFor="field-locationId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
-                Location{locationMode === "optional" ? " (leave blank to stay independent)" : ""}
+              <label htmlFor="field-trainerUserId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                Trainer (optional — can assign later)
               </label>
-              <select
-                id="field-locationId"
-                name="locationId"
-                required={locationMode === "required"}
-                className="w-full field"
-                defaultValue=""
-              >
-                <option value="">{locationMode === "optional" ? "None (independent)" : "Select a location"}</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
+              <select id="field-trainerUserId" name="trainerUserId" className="w-full field" defaultValue="">
+                <option value="">Unassigned</option>
+                {trainers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.technology ? ` (${t.technology})` : ""}
                   </option>
                 ))}
               </select>
             </div>
-          )
+            <div>
+              <label htmlFor="field-otterTeamUserId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                Otter Team reviewer (optional — can assign later)
+              </label>
+              <select id="field-otterTeamUserId" name="otterTeamUserId" className="w-full field" defaultValue="">
+                <option value="">Unassigned</option>
+                {otterTeamMembers.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          <>
+            {(locationMode === "required" || locationMode === "optional") && (
+              <div>
+                <label htmlFor="field-locationId" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                  Location{locationMode === "optional" ? " (leave blank to stay independent)" : ""}
+                </label>
+                <select
+                  id="field-locationId"
+                  name="locationId"
+                  required={locationMode === "required"}
+                  className="w-full field"
+                  defaultValue=""
+                >
+                  <option value="">{locationMode === "optional" ? "None (independent)" : "Select a location"}</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {officeMode === "required" && (
+              <div>
+                <label htmlFor="field-offshoreOffice" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                  Offshore Office
+                </label>
+                <select id="field-offshoreOffice" name="offshoreOffice" required className="w-full field" defaultValue="">
+                  <option value="" disabled>
+                    Select an offshore office
+                  </option>
+                  {Object.entries(OFFSHORE_OFFICE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {isTrainer && (
+              <div>
+                <label htmlFor="field-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+                  Technology
+                </label>
+                <select id="field-technology" name="technology" required className="w-full field" defaultValue="">
+                  <option value="" disabled>
+                    Select a technology
+                  </option>
+                  {TECHNOLOGY_OPTIONS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="mt-4 flex items-center gap-3">

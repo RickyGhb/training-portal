@@ -43,6 +43,8 @@ export const createStaffUserSchema = z.object({
   locationId: optionalTrimmedString(z.string().trim()),
   locationManagerId: optionalTrimmedString(z.string().trim()),
   managerId: optionalTrimmedString(z.string().trim()),
+  offshoreOffice: optionalTrimmedString(z.enum(["LOCATION_1", "LOCATION_2"])),
+  technology: optionalTrimmedString(z.string().trim().max(100)),
 });
 
 export const visaTypeSchema = z.enum(
@@ -60,6 +62,36 @@ export const createConsultantSchema = createStaffUserSchema.extend({
   technology: z.string().trim().min(1, "Select or enter a technology.").max(100),
   visaType: visaTypeSchema,
   dateOfBirth: dateOfBirthSchema,
+  trainerUserId: optionalTrimmedString(z.string().trim()),
+  otterTeamUserId: optionalTrimmedString(z.string().trim()),
+});
+
+export const assignTrainerSchema = z.object({
+  trainerUserId: optionalTrimmedString(z.string().trim()),
+});
+
+export const assignOtterTeamSchema = z.object({
+  otterTeamUserId: optionalTrimmedString(z.string().trim()),
+});
+
+export const submitFeedbackSchema = z.object({
+  verdict: z.enum(["READY", "NOT_READY"], { message: "Select a verdict." }),
+  notes: optionalTrimmedString(z.string().trim().max(1000)),
+});
+
+// Plain z.string().url() accepts javascript:/data: URIs (verified: it just
+// checks the string parses as a URL, not the scheme) — this value gets
+// rendered straight into an <a href> on the consultant's profile page, so a
+// non-http(s) scheme here is a stored XSS vector, not just a bad link.
+const httpUrlSchema = z
+  .string()
+  .trim()
+  .url("Enter a valid URL.")
+  .max(500)
+  .refine((url) => /^https?:\/\//i.test(url), { message: "Link must start with http:// or https://." });
+
+export const calendlyLinkSchema = z.object({
+  calendlyLink: optionalTrimmedString(httpUrlSchema),
 });
 
 export const updateConsultantVisaDobSchema = z.object({

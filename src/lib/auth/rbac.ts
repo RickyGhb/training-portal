@@ -1,4 +1,4 @@
-import type { Role } from "@/generated/prisma/client";
+import type { OffshoreOffice, Role } from "@/generated/prisma/client";
 import type { SessionUser } from "@/lib/auth/session";
 
 /**
@@ -14,6 +14,14 @@ const ROLE_RANK: Record<Role, number> = {
   LOCATION_ADMIN: 2,
   COORDINATOR: 1,
   CONSULTANT: 0,
+  // Offshore Manager / Team Lead form their own small hierarchy, parallel to
+  // the location-based one above — ranked only so canCreateRole/isHigherOrEqualRank
+  // work between just those two. Trainer/Otter Team manage no one, so they sit
+  // at the Consultant tier.
+  OFFSHORE_MANAGER: 1,
+  OFFSHORE_TEAM_LEAD: 0,
+  TRAINER: 0,
+  OTTER_TEAM: 0,
 };
 
 export function isHigherOrEqualRank(a: Role, b: Role): boolean {
@@ -28,15 +36,32 @@ export type ScopeSubject = {
   coordinatorId: string | null;
   locationManagerId: string | null;
   managerId: string | null;
+  offshoreOffice?: OffshoreOffice | null;
+  offshoreTeamLeadId?: string | null;
+  trainerUserId?: string | null;
+  otterTeamUserId?: string | null;
 };
 
 /** Which roles each role is allowed to CREATE. */
 const CREATABLE_ROLES: Record<Role, Role[]> = {
-  CEO: ["CEO", "LOCATION_MANAGER", "LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"],
+  CEO: [
+    "CEO",
+    "LOCATION_MANAGER",
+    "LOCATION_ADMIN",
+    "COORDINATOR",
+    "CONSULTANT",
+    "OFFSHORE_MANAGER",
+    "TRAINER",
+    "OTTER_TEAM",
+  ],
   LOCATION_MANAGER: ["LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"],
   LOCATION_ADMIN: ["COORDINATOR", "CONSULTANT"],
   COORDINATOR: ["CONSULTANT"],
   CONSULTANT: [],
+  OFFSHORE_MANAGER: ["OFFSHORE_TEAM_LEAD"],
+  OFFSHORE_TEAM_LEAD: [],
+  TRAINER: [],
+  OTTER_TEAM: [],
 };
 
 export function canCreateRole(actorRole: Role, targetRole: Role): boolean {
@@ -76,11 +101,60 @@ export function canManageUser(actor: SessionUser, target: ScopeSubject): boolean
     case "COORDINATOR":
       // Restricted to consultants they own.
       return target.role === "CONSULTANT" && target.coordinatorId === actor.id;
+    case "OFFSHORE_MANAGER":
+      // Restricted to Offshore Team Leads sharing the same office — lets the
+      // existing username/reset-password/deactivate/delete actions work for
+      // this role pair without a parallel set of actions.
+      return (
+        target.role === "OFFSHORE_TEAM_LEAD" &&
+        target.offshoreOffice != null &&
+        target.offshoreOffice === actor.offshoreOffice
+      );
     case "CONSULTANT":
+    case "OFFSHORE_TEAM_LEAD":
+    case "TRAINER":
+    case "OTTER_TEAM":
       return false;
     default:
       return false;
   }
+}
+
+/**
+ * Can this Offshore Manager view/read this Consultant's full data? Scoped by
+ * offshoreOffice, a separate axis from the locationId hierarchy above.
+ */
+export function canViewAsOffshoreManager(actor: SessionUser, target: ScopeSubject): boolean {
+  if (actor.role !== "OFFSHORE_MANAGER") return false;
+  return target.role === "CONSULTANT" && target.offshoreOffice !== null && target.offshoreOffice === actor.offshoreOffice;
+}
+
+/**
+ * Can this Offshore Manager manage this Offshore Team Lead (create, reassign,
+ * assign consultants)? Delegates to canManageUser, which already implements
+ * this scope rule — any Offshore Manager in the same office can manage any
+ * Team Lead in that office, not just the one who created them.
+ */
+export function canManageTeamLead(actor: SessionUser, target: ScopeSubject): boolean {
+  return actor.role === "OFFSHORE_MANAGER" && canManageUser(actor, target);
+}
+
+/** Can this Offshore Team Lead view this Consultant (explicitly assigned to them)? */
+export function canViewAsTeamLead(actor: SessionUser, target: ScopeSubject): boolean {
+  if (actor.role !== "OFFSHORE_TEAM_LEAD") return false;
+  return target.role === "CONSULTANT" && target.offshoreTeamLeadId === actor.id;
+}
+
+/** Can this Trainer view/give feedback on this Consultant (explicitly assigned to them)? */
+export function canViewAsTrainer(actor: SessionUser, target: ScopeSubject): boolean {
+  if (actor.role !== "TRAINER") return false;
+  return target.role === "CONSULTANT" && target.trainerUserId === actor.id;
+}
+
+/** Can this Otter Team member view/give feedback on this Consultant (explicitly assigned to them)? */
+export function canViewAsOtterTeam(actor: SessionUser, target: ScopeSubject): boolean {
+  if (actor.role !== "OTTER_TEAM") return false;
+  return target.role === "CONSULTANT" && target.otterTeamUserId === actor.id;
 }
 
 /** Can the actor assign extra individual courses to this consultant? */
@@ -131,6 +205,8 @@ export type LocationAssignmentMode = "none" | "required" | "optional" | "inherit
  */
 export function locationAssignmentModeFor(actorRole: Role, targetRole: Role): LocationAssignmentMode {
   if (targetRole === "CEO") return "none";
+  if (targetRole === "TRAINER" || targetRole === "OTTER_TEAM") return "none";
+  if (targetRole === "OFFSHORE_MANAGER" || targetRole === "OFFSHORE_TEAM_LEAD") return "none";
   if (targetRole === "LOCATION_MANAGER") return "required";
   if (targetRole === "LOCATION_ADMIN") {
     return actorRole === "LOCATION_MANAGER" ? "inherit" : "required";
@@ -140,6 +216,22 @@ export function locationAssignmentModeFor(actorRole: Role, targetRole: Role): Lo
     if (actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN") return "inherit";
     return "required";
   }
+  return "none";
+}
+
+/**
+ * How should offshoreOffice be assigned to a user of `targetRole` being
+ * created by `actorRole`? Separate concept from locationAssignmentModeFor,
+ * which governs the Location *model* (branches) — this governs the
+ * OffshoreOffice enum, reused for Offshore Manager/Team Lead's own scope.
+ * Consultant's Offshore Office field is handled separately (hardcoded in
+ * CreateUserForm's own isConsultant branch, validated in createConsultantSchema)
+ * and deliberately not routed through this helper — createStaffUserAction,
+ * this function's only caller, is never invoked for role="CONSULTANT".
+ */
+export function offshoreOfficeAssignmentModeFor(actorRole: Role, targetRole: Role): LocationAssignmentMode {
+  if (targetRole === "OFFSHORE_MANAGER") return "required";
+  if (targetRole === "OFFSHORE_TEAM_LEAD") return actorRole === "OFFSHORE_MANAGER" ? "inherit" : "required";
   return "none";
 }
 

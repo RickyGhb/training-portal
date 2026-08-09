@@ -6,4 +6,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   LOCATION_ADMIN: "Location Admin",
   COORDINATOR: "Coordinator",
   CONSULTANT: "Consultant",
+  OFFSHORE_MANAGER: "Offshore Manager",
+  OFFSHORE_TEAM_LEAD: "Offshore Team Lead",
+  TRAINER: "Trainer",
+  OTTER_TEAM: "Otter Team",
 };

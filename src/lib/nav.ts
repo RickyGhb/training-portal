@@ -20,6 +20,8 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
+        { label: "Offshore Data", href: "/offshore/consultants", enabled: true },
+        { label: "Location Overview", href: "/location-overview", enabled: true },
         { label: "Notifications", href: "/notifications", enabled: true },
         { label: "Audit Logs", href: "/audit-logs", enabled: true },
       ];
@@ -31,6 +33,7 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
+        { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "LOCATION_ADMIN":
       return [
@@ -38,18 +41,32 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "User Management", href: "/users/management", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
         { label: "Exports", href: "/reports/exports", enabled: true },
+        { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "COORDINATOR":
       return [
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
         { label: "Profile Requests", href: "/profile-requests", enabled: true },
+        { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "CONSULTANT":
       return [
         { label: "My Dashboard", href: "/dashboard", enabled: true },
         { label: "My Courses", href: "/my-courses", enabled: true },
       ];
+    case "OFFSHORE_MANAGER":
+      return [
+        dashboard,
+        { label: "Consultant Data", href: "/offshore/consultants", enabled: true },
+        { label: "Team Leads", href: "/offshore/team-leads", enabled: true },
+      ];
+    case "OFFSHORE_TEAM_LEAD":
+      return [dashboard, { label: "My Consultants", href: "/offshore/my-consultants", enabled: true }];
+    case "TRAINER":
+      return [dashboard, { label: "My Consultants", href: "/trainer/consultants", enabled: true }];
+    case "OTTER_TEAM":
+      return [dashboard, { label: "My Consultants", href: "/otter/consultants", enabled: true }];
     default:
       return [dashboard];
   }

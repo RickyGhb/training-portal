@@ -1,6 +1,6 @@
 # Training Portal
 
-A training portal for a consulting company: role-based user management, a reusable training catalog (paths → courses → videos), assignment and progress tracking, and reporting.
+A training portal for a consulting company: role-based user management, a reusable training catalog (paths → courses → videos), assignment and progress tracking, reporting, and a post-training placement pipeline (Trainer + Otter Team sign-off → "In Marketing") for offshore consultants.
 
 **Live:** https://training-portal-flame.vercel.app
 

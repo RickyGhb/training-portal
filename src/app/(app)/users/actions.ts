@@ -10,6 +10,7 @@ import {
   canManageUser,
   canBulkReassign,
   locationAssignmentModeFor,
+  offshoreOfficeAssignmentModeFor,
   type ScopeSubject,
 } from "@/lib/auth/rbac";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/auth/password";
@@ -20,6 +21,9 @@ import {
   updateProfileFieldsSchema,
   profileChangeRequestSchema,
   updateConsultantVisaDobSchema,
+  assignTrainerSchema,
+  assignOtterTeamSchema,
+  calendlyLinkSchema,
 } from "@/lib/validation/user";
 import { logAudit, notifyCeos, notifyUser } from "@/lib/audit";
 import { UserFacingError } from "@/lib/errors";
@@ -58,11 +62,13 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
     email: formData.get("email"),
     phone: formData.get("phone"),
     locationId: formData.get("locationId"),
+    offshoreOffice: formData.get("offshoreOffice"),
+    technology: formData.get("technology"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { firstName, lastName, username, password, email, phone, locationId } = parsed.data;
+  const { firstName, lastName, username, password, email, phone, locationId, offshoreOffice, technology } = parsed.data;
 
   const strength = validatePasswordStrength(password);
   if (!strength.valid) return { error: strength.reason };
@@ -81,6 +87,24 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
       return { error: "Your account isn't assigned to a location yet, so you can't create users. Ask a CEO to assign one." };
     }
     finalLocationId = actor.locationId;
+  }
+
+  // Offshore office scoping rules (Offshore Manager / Offshore Team Lead only).
+  let finalOffshoreOffice: "LOCATION_1" | "LOCATION_2" | null = null;
+  const officeMode = offshoreOfficeAssignmentModeFor(actor.role, role);
+
+  if (officeMode === "required") {
+    if (!offshoreOffice) return { error: "An offshore office is required for this account type." };
+    finalOffshoreOffice = offshoreOffice;
+  } else if (officeMode === "inherit") {
+    if (!actor.offshoreOffice) {
+      return { error: "Your account isn't assigned to an office yet, so you can't create users. Ask a CEO to assign one." };
+    }
+    finalOffshoreOffice = actor.offshoreOffice;
+  }
+
+  if (role === "TRAINER" && !technology) {
+    return { error: "A technology is required for Trainer accounts." };
   }
 
   // Supervisor chain: who is this new user's Location Manager / Location Admin?
@@ -111,6 +135,8 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
         locationId: finalLocationId,
         managerId: finalManagerId,
         locationManagerId: finalLocationManagerId,
+        offshoreOffice: finalOffshoreOffice,
+        technology: role === "TRAINER" ? technology : null,
         createdByUserId: actor.id,
       },
     });
@@ -122,7 +148,7 @@ export async function createStaffUserAction(role: Role, _prevState: FormState, f
       targetEntityId: user.id,
       targetUserId: user.id,
       locationId: user.locationId,
-      metadata: { role },
+      metadata: { role, offshoreOffice: finalOffshoreOffice, technology: role === "TRAINER" ? technology : undefined },
     });
 
     revalidatePath("/users");
@@ -152,6 +178,8 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
     technology: formData.get("technology"),
     visaType: formData.get("visaType"),
     dateOfBirth: formData.get("dateOfBirth"),
+    trainerUserId: formData.get("trainerUserId"),
+    otterTeamUserId: formData.get("otterTeamUserId"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -168,7 +196,22 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
     technology,
     visaType,
     dateOfBirth,
+    trainerUserId,
+    otterTeamUserId,
   } = parsed.data;
+
+  if (trainerUserId) {
+    const trainer = await prisma.user.findUnique({ where: { id: trainerUserId } });
+    if (!trainer || trainer.role !== "TRAINER" || trainer.status !== "ACTIVE") {
+      return { error: "Chosen trainer is not valid." };
+    }
+  }
+  if (otterTeamUserId) {
+    const otterUser = await prisma.user.findUnique({ where: { id: otterTeamUserId } });
+    if (!otterUser || otterUser.role !== "OTTER_TEAM" || otterUser.status !== "ACTIVE") {
+      return { error: "Chosen Otter Team member is not valid." };
+    }
+  }
 
   const strength = validatePasswordStrength(password);
   if (!strength.valid) return { error: strength.reason };
@@ -203,6 +246,8 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
         technology,
         visaType,
         dateOfBirth,
+        trainerUserId: trainerUserId ?? null,
+        otterTeamUserId: otterTeamUserId ?? null,
         createdByUserId: actor.id,
       },
     });
@@ -221,6 +266,8 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
         technology,
         visaType,
         dateOfBirth: dateOfBirth.toISOString(),
+        trainerUserId: trainerUserId ?? null,
+        otterTeamUserId: otterTeamUserId ?? null,
       },
     });
 
@@ -514,6 +561,92 @@ export async function updateConsultantVisaDobAction(_prevState: FormState, formD
 
   revalidatePath("/users/consultants");
   return { success: "Visa type and date of birth updated." };
+}
+
+/** Whoever manages a consultant assigns/reassigns/unassigns their Trainer. */
+export async function assignTrainerAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  const userId = String(formData.get("userId"));
+
+  const parsed = assignTrainerSchema.safeParse({ trainerUserId: formData.get("trainerUserId") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target || target.deletedAt || target.role !== "CONSULTANT") return { error: "Consultant not found." };
+  if (!canManageUser(actor, target as ScopeSubject)) return { error: "Not authorized." };
+
+  const { trainerUserId } = parsed.data;
+  if (trainerUserId) {
+    const trainer = await prisma.user.findUnique({ where: { id: trainerUserId } });
+    if (!trainer || trainer.role !== "TRAINER" || trainer.status !== "ACTIVE") {
+      return { error: "Chosen trainer is not valid." };
+    }
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { trainerUserId: trainerUserId ?? null } });
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "PROFILE_UPDATED",
+    targetEntityType: "User",
+    targetEntityId: userId,
+    targetUserId: userId,
+    locationId: target.locationId,
+    metadata: { trainerUserId: trainerUserId ?? null },
+  });
+
+  revalidatePath("/users/consultants");
+  return { success: "Trainer assignment updated." };
+}
+
+/** Whoever manages a consultant assigns/reassigns/unassigns their Otter Team reviewer. */
+export async function assignOtterTeamAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  const userId = String(formData.get("userId"));
+
+  const parsed = assignOtterTeamSchema.safeParse({ otterTeamUserId: formData.get("otterTeamUserId") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target || target.deletedAt || target.role !== "CONSULTANT") return { error: "Consultant not found." };
+  if (!canManageUser(actor, target as ScopeSubject)) return { error: "Not authorized." };
+
+  const { otterTeamUserId } = parsed.data;
+  if (otterTeamUserId) {
+    const otterUser = await prisma.user.findUnique({ where: { id: otterTeamUserId } });
+    if (!otterUser || otterUser.role !== "OTTER_TEAM" || otterUser.status !== "ACTIVE") {
+      return { error: "Chosen Otter Team member is not valid." };
+    }
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { otterTeamUserId: otterTeamUserId ?? null } });
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "PROFILE_UPDATED",
+    targetEntityType: "User",
+    targetEntityId: userId,
+    targetUserId: userId,
+    locationId: target.locationId,
+    metadata: { otterTeamUserId: otterTeamUserId ?? null },
+  });
+
+  revalidatePath("/users/consultants");
+  return { success: "Otter Team assignment updated." };
+}
+
+/** Self-service: a Trainer or Coordinator sets/updates their own Calendly link. */
+export async function updateCalendlyLinkAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  if (actor.role !== "TRAINER" && actor.role !== "COORDINATOR") return { error: "Not authorized." };
+
+  const parsed = calendlyLinkSchema.safeParse({ calendlyLink: formData.get("calendlyLink") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  await prisma.user.update({ where: { id: actor.id }, data: { calendlyLink: parsed.data.calendlyLink ?? null } });
+
+  revalidatePath("/profile");
+  return { success: "Calendly link saved." };
 }
 
 const PROFILE_FIELD_LABELS: Record<string, string> = {

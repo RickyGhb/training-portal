@@ -7,6 +7,8 @@ import { getPrimaryTrainingPath, getResolvedCourses, getConsultantProgress } fro
 import { StatusBadge } from "@/components/ui/Badge";
 import { UsernameEditButton } from "@/components/users/UsernameEditButton";
 import { VisaDobForm } from "@/components/users/VisaDobForm";
+import { TrainerAssignForm } from "@/components/users/TrainerAssignForm";
+import { OtterAssignForm } from "@/components/users/OtterAssignForm";
 import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
 import { ProfileFieldsForm } from "@/app/(app)/profile/ProfileFieldsForm";
 import { AssignPathButton } from "./assign-path-button";
@@ -25,11 +27,13 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
   if (!target || target.deletedAt || target.role !== "CONSULTANT") notFound();
   if (!canManageUser(actor, target as ScopeSubject)) redirect("/users/consultants");
 
-  const [assignment, resolvedCourses, progress, trainingPaths] = await Promise.all([
+  const [assignment, resolvedCourses, progress, trainingPaths, trainers, otterTeamMembers] = await Promise.all([
     getPrimaryTrainingPath(target.id),
     getResolvedCourses(target.id),
     getConsultantProgress(target.id),
     prisma.trainingPath.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { role: "TRAINER", status: "ACTIVE", deletedAt: null }, orderBy: { firstName: "asc" } }),
+    prisma.user.findMany({ where: { role: "OTTER_TEAM", status: "ACTIVE", deletedAt: null }, orderBy: { firstName: "asc" } }),
   ]);
 
   const resolvedCourseIds = new Set(resolvedCourses.map((c) => c.id));
@@ -66,6 +70,7 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         {target.coordinator ? ` · Coordinator: ${target.coordinator.firstName} ${target.coordinator.lastName}` : ""}
         {target.offshoreOffice ? ` · Offshore Office: ${OFFSHORE_OFFICE_LABELS[target.offshoreOffice]}` : ""}
         {target.technology ? ` · Technology: ${target.technology}` : ""}
+        {` · ${target.marketingStatus === "IN_MARKETING" ? "In Marketing" : "In Training"}`}
       </p>
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Edit profile</h2>
@@ -84,6 +89,16 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         <UsernameEditButton userId={target.id} username={target.username} />
       </div>
       <VisaDobForm userId={target.id} visaType={target.visaType} dateOfBirth={target.dateOfBirth} />
+      <TrainerAssignForm
+        userId={target.id}
+        trainerUserId={target.trainerUserId}
+        trainers={trainers.map((t) => ({ id: t.id, name: `${t.firstName} ${t.lastName}`, technology: t.technology }))}
+      />
+      <OtterAssignForm
+        userId={target.id}
+        otterTeamUserId={target.otterTeamUserId}
+        otterTeamMembers={otterTeamMembers.map((o) => ({ id: o.id, name: `${o.firstName} ${o.lastName}` }))}
+      />
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Progress</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPrimaryTrainingPath, getConsultantProgress } from "@/lib/content-resolution";
 import { prisma } from "@/lib/prisma";
@@ -46,6 +47,14 @@ export default async function DashboardPage({
   const user = await getCurrentUser();
   if (!user) return null;
 
+  // These four roles get dedicated landing pages rather than the org-wide
+  // reporting dashboard below (which is built around the location hierarchy
+  // they aren't part of).
+  if (user.role === "OFFSHORE_MANAGER") redirect("/offshore/consultants");
+  if (user.role === "OFFSHORE_TEAM_LEAD") redirect("/offshore/my-consultants");
+  if (user.role === "TRAINER") redirect("/trainer/consultants");
+  if (user.role === "OTTER_TEAM") redirect("/otter/consultants");
+
   if (user.role === "CONSULTANT") {
     const [assignment, progress] = await Promise.all([
       getPrimaryTrainingPath(user.id),
@@ -57,6 +66,8 @@ export default async function DashboardPage({
         <h1 className="page-title">Welcome, {user.firstName}</h1>
         <p className="page-subtitle">
           {assignment ? `Training path: ${assignment.trainingPath.name}` : "No training path assigned yet."}
+          {" · "}
+          {user.marketingStatus === "IN_MARKETING" ? "In Marketing" : "In Training"}
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -110,7 +121,11 @@ export default async function DashboardPage({
       : Promise.resolve([]),
     user.role !== "COORDINATOR"
       ? prisma.user.findMany({
-          where: { role: "COORDINATOR", status: "ACTIVE", deletedAt: null, ...userVisibilityFilter(user) },
+          // userVisibilityFilter(user) also returns a `role` key (e.g. `{ notIn: [...] }`
+          // for Location Manager/Location Admin) — spread it first so the explicit
+          // `role: "COORDINATOR"` below always wins, instead of being silently
+          // clobbered by the broader scope filter.
+          where: { status: "ACTIVE", deletedAt: null, ...userVisibilityFilter(user), role: "COORDINATOR" },
           orderBy: { firstName: "asc" },
         })
       : Promise.resolve([]),

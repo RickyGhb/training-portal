@@ -17,7 +17,7 @@ export default async function NewUserPage() {
   });
   const needsCoordinators = allowedRoles.includes("CONSULTANT");
 
-  const [locations, coordinators] = await Promise.all([
+  const [locations, coordinators, trainers, otterTeamMembers] = await Promise.all([
     needsLocations
       ? prisma.location.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
@@ -28,6 +28,12 @@ export default async function NewUserPage() {
             where: { role: "COORDINATOR", status: "ACTIVE", deletedAt: null, ...userVisibilityFilter(actor) },
             orderBy: { firstName: "asc" },
           })
+      : Promise.resolve([]),
+    needsCoordinators
+      ? prisma.user.findMany({ where: { role: "TRAINER", status: "ACTIVE", deletedAt: null }, orderBy: { firstName: "asc" } })
+      : Promise.resolve([]),
+    needsCoordinators
+      ? prisma.user.findMany({ where: { role: "OTTER_TEAM", status: "ACTIVE", deletedAt: null }, orderBy: { firstName: "asc" } })
       : Promise.resolve([]),
   ]);
 
@@ -42,6 +48,8 @@ export default async function NewUserPage() {
           actorRole={actor.role}
           locations={locations}
           coordinators={coordinators}
+          trainers={trainers.map((t) => ({ id: t.id, name: `${t.firstName} ${t.lastName}`, technology: t.technology }))}
+          otterTeamMembers={otterTeamMembers.map((o) => ({ id: o.id, name: `${o.firstName} ${o.lastName}` }))}
         />
       </div>
     </div>

@@ -7,12 +7,13 @@ import { UsernameEditButton } from "@/components/users/UsernameEditButton";
 import { ChangePasswordButton } from "@/components/users/ChangePasswordButton";
 import { ProfileFieldsForm } from "./ProfileFieldsForm";
 import { ProfileChangeRequestButton } from "./ProfileChangeRequestButton";
+import { CalendlyLinkForm } from "./CalendlyLinkForm";
 
 export default async function ProfilePage() {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
 
-  const self = await prisma.user.findUnique({ where: { id: actor.id } });
+  const self = await prisma.user.findUnique({ where: { id: actor.id }, include: { trainer: true } });
   if (!self || self.deletedAt) redirect("/login");
 
   return (
@@ -58,8 +59,30 @@ export default async function ProfilePage() {
                   )}
                 </dd>
               </div>
+              <div className="flex justify-between">
+                <dt className="text-[var(--color-ink-soft)]">Status</dt>
+                <dd className="text-[var(--color-ink)]">
+                  {self.marketingStatus === "IN_MARKETING" ? "In Marketing" : "In Training"}
+                </dd>
+              </div>
             </dl>
           </div>
+          {self.trainer?.calendlyLink && (
+            <div className="mt-4 max-w-md card">
+              <p className="text-sm font-medium text-[var(--color-ink)]">Ready for your demo?</p>
+              <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
+                Book a slot with {self.trainer.firstName} {self.trainer.lastName}.
+              </p>
+              <a
+                href={self.trainer.calendlyLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block btn-primary"
+              >
+                Schedule your demo
+              </a>
+            </div>
+          )}
           <p className="mt-4 max-w-md text-sm text-[var(--color-ink-soft)]">
             To change any of these details, send a request to your coordinator.
           </p>
@@ -89,6 +112,9 @@ export default async function ProfilePage() {
               <ChangePasswordButton />
             </div>
           </div>
+          {(self.role === "TRAINER" || self.role === "COORDINATOR") && (
+            <CalendlyLinkForm calendlyLink={self.calendlyLink} />
+          )}
         </>
       )}
     </div>

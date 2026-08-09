@@ -10,7 +10,17 @@ import { VISA_TYPE_LABELS } from "@/lib/visaTypeLabels";
 import { StatusBadge } from "@/components/ui/Badge";
 import { UserRowActions } from "@/components/users/UserRowActions";
 
-const ALL_ROLES: Role[] = ["CEO", "LOCATION_MANAGER", "LOCATION_ADMIN", "COORDINATOR", "CONSULTANT"];
+const ALL_ROLES: Role[] = [
+  "CEO",
+  "LOCATION_MANAGER",
+  "LOCATION_ADMIN",
+  "COORDINATOR",
+  "CONSULTANT",
+  "OFFSHORE_MANAGER",
+  "OFFSHORE_TEAM_LEAD",
+  "TRAINER",
+  "OTTER_TEAM",
+];
 
 /** Roles visible to this actor at all, derived from the same scope rule as userVisibilityFilter, for populating the role filter dropdown. */
 function visibleRolesFor(actorRole: Role): Role[] {
@@ -37,7 +47,19 @@ export default async function UserManagementPage({
 }) {
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
-  if (actor.role === "CONSULTANT") redirect("/dashboard");
+  // These roles sit outside the location hierarchy this page is built around
+  // (userVisibilityFilter/visibleRolesFor have no case for them, so they'd
+  // otherwise land on an empty, pointless "User Management" page) — each has
+  // its own dedicated list page instead.
+  if (
+    actor.role === "CONSULTANT" ||
+    actor.role === "OFFSHORE_MANAGER" ||
+    actor.role === "OFFSHORE_TEAM_LEAD" ||
+    actor.role === "TRAINER" ||
+    actor.role === "OTTER_TEAM"
+  ) {
+    redirect("/dashboard");
+  }
 
   const sp = await searchParams;
   const visibleRoles = visibleRolesFor(actor.role);

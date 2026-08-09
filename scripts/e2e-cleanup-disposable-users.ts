@@ -13,7 +13,22 @@
 import { prisma } from "../src/lib/prisma";
 
 async function main() {
-  const { count } = await prisma.user.deleteMany({ where: { usernameLower: { startsWith: "e2e-" } } });
+  const ids = (await prisma.user.findMany({ where: { usernameLower: { startsWith: "e2e-" } }, select: { id: true } })).map(
+    (u) => u.id
+  );
+
+  // AuditLog/Notification/TrainerFeedback/OtterFeedback FKs to User are all
+  // Restrict (no cascade) — must clear them before the user rows themselves.
+  await prisma.trainerFeedback.deleteMany({
+    where: { OR: [{ consultantUserId: { in: ids } }, { trainerUserId: { in: ids } }] },
+  });
+  await prisma.otterFeedback.deleteMany({
+    where: { OR: [{ consultantUserId: { in: ids } }, { otterUserId: { in: ids } }] },
+  });
+  await prisma.notification.deleteMany({ where: { recipientUserId: { in: ids } } });
+  await prisma.auditLog.deleteMany({ where: { OR: [{ actorUserId: { in: ids } }, { targetUserId: { in: ids } }] } });
+
+  const { count } = await prisma.user.deleteMany({ where: { id: { in: ids } } });
   console.log(`e2e cleanup: deleted ${count} disposable user(s).`);
 }
 

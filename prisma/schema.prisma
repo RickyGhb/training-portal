@@ -17,6 +17,10 @@ enum Role {
   LOCATION_ADMIN
   COORDINATOR
   CONSULTANT
+  OFFSHORE_MANAGER
+  OFFSHORE_TEAM_LEAD
+  TRAINER
+  OTTER_TEAM
 }
 
 enum UserStatus {
@@ -59,6 +63,10 @@ enum AuditActionType {
   LOGIN_FAILED
   PROFILE_CHANGE_REQUESTED
   PROFILE_UPDATED
+  TRAINER_FEEDBACK_SUBMITTED
+  OTTER_FEEDBACK_SUBMITTED
+  MARKETING_STATUS_CHANGED
+  TEAM_LEAD_REASSIGNED
 }
 
 enum NotificationType {
@@ -66,6 +74,7 @@ enum NotificationType {
   PASSWORD_RESET
   USER_DELETED
   PROFILE_CHANGE_REQUESTED
+  MARKETING_READY
 }
 
 // Unrelated to the Location model/hierarchy — a separate, fixed classification
@@ -83,6 +92,16 @@ enum VisaType {
   H4EAD
   GC
   US_CITIZEN
+}
+
+enum MarketingStatus {
+  IN_TRAINING
+  IN_MARKETING
+}
+
+enum FeedbackVerdict {
+  READY
+  NOT_READY
 }
 
 model Location {
@@ -128,8 +147,35 @@ model User {
   coordinator        User?   @relation("CoordinatorToConsultants", fields: [coordinatorId], references: [id])
   managedConsultants User[]  @relation("CoordinatorToConsultants")
 
+  // Offshore Team Lead -> Consultant, assigned by the Offshore Manager. Separate
+  // axis from coordinatorId — a Consultant can have both a Coordinator and an
+  // Offshore Team Lead simultaneously.
+  offshoreTeamLeadId String?
+  offshoreTeamLead   User?   @relation("TeamLeadToConsultants", fields: [offshoreTeamLeadId], references: [id])
+  managedByTeamLead  User[]  @relation("TeamLeadToConsultants")
+
+  // Trainer -> Consultant, one assigned Trainer per Consultant.
+  trainerUserId String?
+  trainer       User?   @relation("TrainerToConsultants", fields: [trainerUserId], references: [id])
+  trainees      User[]  @relation("TrainerToConsultants")
+
+  // Otter Team -> Consultant, one assigned Otter Team reviewer per Consultant.
+  otterTeamUserId String?
+  otterTeamUser   User?   @relation("OtterTeamToConsultants", fields: [otterTeamUserId], references: [id])
+  otterCaseload   User[]  @relation("OtterTeamToConsultants")
+
   // Separate from locationId/the Location model — see OffshoreOffice enum comment.
+  // Also reused (not renamed) for the Offshore Manager's/Team Lead's own office
+  // assignment — same enum, same field, different meaning depending on role.
   offshoreOffice OffshoreOffice?
+
+  // Self-service Calendly link, set by a Trainer or Coordinator for Consultants
+  // to book demo slots against. Null for every other role.
+  calendlyLink String?
+
+  // Consultant-only readiness status, flipped once both Trainer and Otter Team
+  // feedback verdicts are READY. See evaluateMarketingReadiness().
+  marketingStatus MarketingStatus @default(IN_TRAINING)
 
   // Plain string, not an enum (unlike OffshoreOffice) — this list keeps
   // growing and includes arbitrary free text via an "Other" option.
@@ -161,6 +207,11 @@ model User {
   createdCourses        Course[]                       @relation("CourseCreatedBy")
   createdVideos         Video[]                        @relation("VideoCreatedBy")
   updatedVideos         Video[]                        @relation("VideoUpdatedBy")
+
+  trainerFeedbackReceived TrainerFeedback[] @relation("TrainerFeedbackConsultant")
+  trainerFeedbackGiven    TrainerFeedback[] @relation("TrainerFeedbackTrainer")
+  otterFeedbackReceived   OtterFeedback[]   @relation("OtterFeedbackConsultant")
+  otterFeedbackGiven      OtterFeedback[]   @relation("OtterFeedbackOtterUser")
 
   @@index([role])
   @@index([locationId])
@@ -292,6 +343,34 @@ model VideoCompletion {
 
   @@unique([consultantUserId, videoId])
   @@index([videoId])
+}
+
+model TrainerFeedback {
+  id               String          @id @default(cuid())
+  consultantUserId String
+  consultant       User            @relation("TrainerFeedbackConsultant", fields: [consultantUserId], references: [id], onDelete: Cascade)
+  trainerUserId    String
+  trainer          User            @relation("TrainerFeedbackTrainer", fields: [trainerUserId], references: [id])
+  verdict          FeedbackVerdict
+  notes            String?
+  createdAt        DateTime        @default(now())
+
+  @@index([consultantUserId])
+  @@index([trainerUserId])
+}
+
+model OtterFeedback {
+  id               String          @id @default(cuid())
+  consultantUserId String
+  consultant       User            @relation("OtterFeedbackConsultant", fields: [consultantUserId], references: [id], onDelete: Cascade)
+  otterUserId      String
+  otterUser        User            @relation("OtterFeedbackOtterUser", fields: [otterUserId], references: [id])
+  verdict          FeedbackVerdict
+  notes            String?
+  createdAt        DateTime        @default(now())
+
+  @@index([consultantUserId])
+  @@index([otterUserId])
 }
 
 model Session {

@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import type { Role, UserStatus } from "@/generated/prisma/client";
+import type { MarketingStatus, OffshoreOffice, Role, UserStatus } from "@/generated/prisma/client";
 
 export const SESSION_COOKIE_NAME = "tp_session";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
@@ -18,6 +18,11 @@ export type SessionUser = {
   managerId: string | null;
   locationManagerId: string | null;
   coordinatorId: string | null;
+  offshoreOffice: OffshoreOffice | null;
+  offshoreTeamLeadId: string | null;
+  trainerUserId: string | null;
+  otterTeamUserId: string | null;
+  marketingStatus: MarketingStatus;
 };
 
 function generateRawToken(): string {
@@ -104,6 +109,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     managerId: session.user.managerId,
     locationManagerId: session.user.locationManagerId,
     coordinatorId: session.user.coordinatorId,
+    offshoreOffice: session.user.offshoreOffice,
+    offshoreTeamLeadId: session.user.offshoreTeamLeadId,
+    trainerUserId: session.user.trainerUserId,
+    otterTeamUserId: session.user.otterTeamUserId,
+    marketingStatus: session.user.marketingStatus,
   };
 }
 

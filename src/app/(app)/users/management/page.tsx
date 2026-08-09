@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { userVisibilityFilter, canBulkReassign } from "@/lib/auth/rbac";
 import { ROLE_LABELS } from "@/lib/roleLabels";
+import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
+import { VISA_TYPE_LABELS } from "@/lib/visaTypeLabels";
 import { StatusBadge } from "@/components/ui/Badge";
 import { UserRowActions } from "@/components/users/UserRowActions";
 
@@ -102,6 +104,7 @@ export default async function UserManagementPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const showConsultantColumns = roleFilter === "CONSULTANT";
 
   const baseParams = new URLSearchParams();
   if (roleFilter) baseParams.set("role", roleFilter);
@@ -178,6 +181,14 @@ export default async function UserManagementPage({
                 <th className="px-4 py-2">Location</th>
                 <th className="px-4 py-2">Reports to</th>
                 <th className="px-4 py-2">Status</th>
+                {showConsultantColumns && (
+                  <>
+                    <th className="px-4 py-2">Offshore Office</th>
+                    <th className="px-4 py-2">Technology</th>
+                    <th className="px-4 py-2">Visa Type</th>
+                    <th className="px-4 py-2">Date of Birth</th>
+                  </>
+                )}
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
@@ -198,6 +209,20 @@ export default async function UserManagementPage({
                     <td className="px-4 py-2">
                       <StatusBadge status={u.status} />
                     </td>
+                    {showConsultantColumns && (
+                      <>
+                        <td className="px-4 py-2 text-[var(--color-ink-soft)]">
+                          {u.offshoreOffice ? OFFSHORE_OFFICE_LABELS[u.offshoreOffice] : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-[var(--color-ink-soft)]">{u.technology ?? "—"}</td>
+                        <td className="px-4 py-2 text-[var(--color-ink-soft)]">
+                          {u.visaType ? VISA_TYPE_LABELS[u.visaType] : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-[var(--color-ink-soft)]">
+                          {u.dateOfBirth ? u.dateOfBirth.toLocaleDateString(undefined, { timeZone: "UTC" }) : "—"}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-2">
                       <UserRowActions
                         userId={u.id}
@@ -212,7 +237,7 @@ export default async function UserManagementPage({
               })}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
+                  <td colSpan={showConsultantColumns ? 11 : 7} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                     No users match these filters.
                   </td>
                 </tr>

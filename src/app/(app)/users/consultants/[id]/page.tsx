@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { canManageUser, type ScopeSubject } from "@/lib/auth/rbac";
 import { getPrimaryTrainingPath, getResolvedCourses, getConsultantProgress } from "@/lib/content-resolution";
 import { StatusBadge } from "@/components/ui/Badge";
+import { UsernameEditButton } from "@/components/users/UsernameEditButton";
+import { ProfileFieldsForm } from "@/app/(app)/profile/ProfileFieldsForm";
 import { AssignPathButton } from "./assign-path-button";
 import { ExtraCourses } from "./extra-courses";
 
@@ -61,6 +63,22 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         {target.location ? ` · ${target.location.name}` : ""}
         {target.coordinator ? ` · Coordinator: ${target.coordinator.firstName} ${target.coordinator.lastName}` : ""}
       </p>
+
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Edit profile</h2>
+      <ProfileFieldsForm
+        userId={target.id}
+        firstName={target.firstName}
+        lastName={target.lastName}
+        email={target.email}
+        phone={target.phone}
+      />
+      <div className="mt-3 flex max-w-md items-center justify-between card">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-ink)]">Username</p>
+          <p className="text-sm text-[var(--color-ink-soft)]">@{target.username}</p>
+        </div>
+        <UsernameEditButton userId={target.id} username={target.username} />
+      </div>
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Progress</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">

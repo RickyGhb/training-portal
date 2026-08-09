@@ -43,6 +43,7 @@ export function navItemsForRole(role: Role): NavItem[] {
       return [
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
+        { label: "Profile Requests", href: "/profile-requests", enabled: true },
       ];
     case "CONSULTANT":
       return [

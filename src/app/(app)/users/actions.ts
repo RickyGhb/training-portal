@@ -17,8 +17,10 @@ import {
   createStaffUserSchema,
   createConsultantSchema,
   usernameSchema,
+  updateProfileFieldsSchema,
+  profileChangeRequestSchema,
 } from "@/lib/validation/user";
-import { logAudit, notifyCeos } from "@/lib/audit";
+import { logAudit, notifyCeos, notifyUser } from "@/lib/audit";
 import { UserFacingError } from "@/lib/errors";
 
 export type FormState = { error?: string; success?: string };
@@ -395,6 +397,112 @@ export async function changeOwnPasswordAction(_prevState: FormState, formData: F
   });
 
   redirect("/login");
+}
+
+/**
+ * Updates name/email/phone for a user. Shared by self-edit (Coordinator and
+ * above) and by a Coordinator manually applying a Consultant's change
+ * request. Username has its own action (updateUsernameAction) and isn't
+ * folded in here.
+ */
+export async function updateProfileFieldsAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  const userId = String(formData.get("userId"));
+
+  const parsed = updateProfileFieldsSchema.safeParse({
+    firstName: formData.get("firstName"),
+    lastName: formData.get("lastName"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target || target.deletedAt) return { error: "User not found." };
+
+  const isSelf = actor.id === userId;
+  if (isSelf) {
+    if (actor.role === "CONSULTANT") {
+      return { error: "Consultants can't edit their profile directly. Submit a change request instead." };
+    }
+  } else if (!canManageUser(actor, target as ScopeSubject)) {
+    return { error: "Not authorized." };
+  }
+
+  const { firstName, lastName, email, phone } = parsed.data;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { firstName, lastName, email: email ?? null, phone: phone ?? null },
+  });
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "PROFILE_UPDATED",
+    targetEntityType: "User",
+    targetEntityId: userId,
+    targetUserId: userId,
+    locationId: target.locationId,
+    metadata: { selfService: isSelf, firstName, lastName, email: email ?? null, phone: phone ?? null },
+  });
+
+  revalidatePath("/profile");
+  revalidatePath("/users");
+  return { success: "Profile updated." };
+}
+
+const PROFILE_FIELD_LABELS: Record<string, string> = {
+  firstName: "first name",
+  lastName: "last name",
+  email: "email",
+  phone: "phone",
+  username: "username",
+};
+
+/** Consultant-only: submits a profile-change request to their coordinator instead of editing directly. */
+export async function profileChangeRequestAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  if (actor.role !== "CONSULTANT") return { error: "Not authorized." };
+
+  const parsed = profileChangeRequestSchema.safeParse({
+    field: formData.get("field"),
+    desiredValue: formData.get("desiredValue"),
+    note: formData.get("note"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const self = await prisma.user.findUnique({ where: { id: actor.id } });
+  if (!self || self.deletedAt) return { error: "Account not found." };
+  if (!self.coordinatorId) {
+    return { error: "You don't have a coordinator assigned to review requests. Contact your admin." };
+  }
+
+  const { field, desiredValue, note } = parsed.data;
+
+  const entry = await logAudit({
+    actorUserId: actor.id,
+    actionType: "PROFILE_CHANGE_REQUESTED",
+    targetEntityType: "User",
+    targetEntityId: actor.id,
+    targetUserId: actor.id,
+    locationId: self.locationId,
+    metadata: { field, desiredValue, note: note ?? null },
+  });
+
+  await notifyUser({
+    recipientUserId: self.coordinatorId,
+    type: "PROFILE_CHANGE_REQUESTED",
+    title: "Profile change request",
+    body: `${self.firstName} ${self.lastName} (@${self.username}) requested a change to their ${PROFILE_FIELD_LABELS[field]}: "${desiredValue}"${note ? ` — ${note}` : ""}`,
+    sourceAuditLogId: entry.id,
+  });
+
+  revalidatePath("/profile");
+  return { success: "Request sent to your coordinator." };
 }
 
 export async function bulkReassignAction(_prevState: FormState, formData: FormData): Promise<FormState> {

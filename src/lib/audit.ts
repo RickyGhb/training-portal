@@ -59,3 +59,14 @@ export async function notifyCeos(params: {
     })),
   });
 }
+
+/** Notifies a single specific user (e.g. a consultant's coordinator). */
+export async function notifyUser(params: {
+  recipientUserId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  sourceAuditLogId: string;
+}) {
+  await prisma.notification.create({ data: params });
+}

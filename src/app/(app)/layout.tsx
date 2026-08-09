@@ -4,7 +4,6 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { navItemsForRole } from "@/lib/nav";
 import { ROLE_LABELS } from "@/lib/roleLabels";
-import { ChangePasswordButton } from "@/components/users/ChangePasswordButton";
 import { logoutAction } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +16,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const unreadNotifications =
     user.role === "CEO"
       ? await prisma.notification.count({ where: { recipientUserId: user.id, isRead: false } })
-      : 0;
+      : user.role === "COORDINATOR"
+        ? await prisma.notification.count({
+            where: { recipientUserId: user.id, isRead: false, type: "PROFILE_CHANGE_REQUESTED" },
+          })
+        : 0;
 
   const initials = `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
@@ -28,7 +31,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--color-accent-soft)]">
             Training Portal
           </p>
-          <div className="mt-3 flex items-center gap-2.5">
+          <Link
+            href="/profile"
+            className="mt-3 flex items-center gap-2.5 rounded-lg -mx-1 px-1 py-1 transition-colors hover:bg-white/[0.06]"
+          >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-xs font-semibold text-[#fff9f0]">
               {initials}
             </span>
@@ -38,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </p>
               <p className="truncate text-xs text-[var(--color-shell-text-muted)]">{ROLE_LABELS[user.role]}</p>
             </div>
-          </div>
+          </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 p-3">
           {navItems.map((item) =>
@@ -49,7 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-[var(--color-shell-text)]/90 transition-colors hover:bg-white/[0.06] hover:text-[var(--color-shell-text)]"
               >
                 {item.label}
-                {item.href === "/notifications" && unreadNotifications > 0 && (
+                {(item.href === "/notifications" || item.href === "/profile-requests") && unreadNotifications > 0 && (
                   <span className="rounded-full bg-[var(--color-accent)] px-1.5 py-0.5 text-xs font-medium text-[#fff9f0]">
                     {unreadNotifications}
                   </span>
@@ -67,7 +73,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
         </nav>
         <div className="border-t border-[var(--color-shell-border)] p-3">
-          {user.role === "CEO" && <ChangePasswordButton />}
           <form action={logoutAction}>
             <button
               type="submit"

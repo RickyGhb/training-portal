@@ -2,8 +2,8 @@
 
 import { FormModalButton } from "@/components/ui/FormModalButton";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { UsernameEditButton } from "@/components/users/UsernameEditButton";
 import {
-  updateUsernameAction,
   resetPasswordAction,
   setUserStatusAction,
   deleteUserAction,
@@ -28,26 +28,7 @@ export function UserRowActions({
 
   return (
     <div className="flex items-center justify-end gap-3">
-      <FormModalButton
-        action={updateUsernameAction}
-        hiddenFields={{ userId }}
-        title="Change username"
-        description={`Current username: ${username}`}
-        label="Edit username"
-      >
-        <div>
-          <label htmlFor={`new-username-${userId}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
-            New username
-          </label>
-          <input
-            id={`new-username-${userId}`}
-            name="newUsername"
-            required
-            defaultValue={username}
-            className="w-full field"
-          />
-        </div>
-      </FormModalButton>
+      <UsernameEditButton userId={userId} username={username} />
 
       <FormModalButton
         action={resetPasswordAction}

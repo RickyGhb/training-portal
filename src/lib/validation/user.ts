@@ -49,6 +49,19 @@ export const createConsultantSchema = createStaffUserSchema.extend({
   coordinatorId: z.string().trim().min(1, "A coordinator must own this consultant."),
 });
 
+export const updateProfileFieldsSchema = z.object({
+  firstName: nameSchema,
+  lastName: nameSchema,
+  email: optionalEmailSchema,
+  phone: optionalPhoneSchema,
+});
+
+export const profileChangeRequestSchema = z.object({
+  field: z.enum(["firstName", "lastName", "email", "phone", "username"]),
+  desiredValue: z.string().trim().min(1, "Enter the new value.").max(200),
+  note: optionalTrimmedString(z.string().trim().max(500)),
+});
+
 export const createLocationSchema = z.object({
   name: nameSchema,
   code: z

@@ -68,6 +68,23 @@ enum NotificationType {
   PROFILE_CHANGE_REQUESTED
 }
 
+// Unrelated to the Location model/hierarchy — a separate, fixed classification
+// used only at consultant-creation time (for now).
+enum OffshoreOffice {
+  LOCATION_1
+  LOCATION_2
+}
+
+enum VisaType {
+  CPT
+  INITIAL_OPT
+  STEM_OPT
+  H1B
+  H4EAD
+  GC
+  US_CITIZEN
+}
+
 model Location {
   id              String        @id @default(cuid())
   name            String
@@ -110,6 +127,16 @@ model User {
   coordinatorId      String?
   coordinator        User?   @relation("CoordinatorToConsultants", fields: [coordinatorId], references: [id])
   managedConsultants User[]  @relation("CoordinatorToConsultants")
+
+  // Separate from locationId/the Location model — see OffshoreOffice enum comment.
+  offshoreOffice OffshoreOffice?
+
+  // Plain string, not an enum (unlike OffshoreOffice) — this list keeps
+  // growing and includes arbitrary free text via an "Other" option.
+  technology String?
+
+  visaType    VisaType?
+  dateOfBirth DateTime? @db.Date
 
   createdByUserId String?
   createdBy       User?   @relation("UserCreatedBy", fields: [createdByUserId], references: [id])

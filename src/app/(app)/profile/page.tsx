@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS } from "@/lib/roleLabels";
+import { VISA_TYPE_LABELS } from "@/lib/visaTypeLabels";
 import { UsernameEditButton } from "@/components/users/UsernameEditButton";
 import { ChangePasswordButton } from "@/components/users/ChangePasswordButton";
 import { ProfileFieldsForm } from "./ProfileFieldsForm";
@@ -40,6 +41,22 @@ export default async function ProfilePage() {
               <div className="flex justify-between">
                 <dt className="text-[var(--color-ink-soft)]">Phone</dt>
                 <dd className="text-[var(--color-ink)]">{self.phone || <span className="text-[var(--color-ink-faint)]">Not set</span>}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-[var(--color-ink-soft)]">Visa Type</dt>
+                <dd className="text-[var(--color-ink)]">
+                  {self.visaType ? VISA_TYPE_LABELS[self.visaType] : <span className="text-[var(--color-ink-faint)]">Not set</span>}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-[var(--color-ink-soft)]">Date of Birth</dt>
+                <dd className="text-[var(--color-ink)]">
+                  {self.dateOfBirth ? (
+                    self.dateOfBirth.toLocaleDateString(undefined, { timeZone: "UTC" })
+                  ) : (
+                    <span className="text-[var(--color-ink-faint)]">Not set</span>
+                  )}
+                </dd>
               </div>
             </dl>
           </div>

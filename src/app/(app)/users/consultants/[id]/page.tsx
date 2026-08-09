@@ -6,6 +6,7 @@ import { canManageUser, type ScopeSubject } from "@/lib/auth/rbac";
 import { getPrimaryTrainingPath, getResolvedCourses, getConsultantProgress } from "@/lib/content-resolution";
 import { StatusBadge } from "@/components/ui/Badge";
 import { UsernameEditButton } from "@/components/users/UsernameEditButton";
+import { VisaDobForm } from "@/components/users/VisaDobForm";
 import { ProfileFieldsForm } from "@/app/(app)/profile/ProfileFieldsForm";
 import { AssignPathButton } from "./assign-path-button";
 import { ExtraCourses } from "./extra-courses";
@@ -79,6 +80,7 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         </div>
         <UsernameEditButton userId={target.id} username={target.username} />
       </div>
+      <VisaDobForm userId={target.id} visaType={target.visaType} dateOfBirth={target.dateOfBirth} />
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Progress</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">

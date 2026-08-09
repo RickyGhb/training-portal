@@ -45,8 +45,26 @@ export const createStaffUserSchema = z.object({
   managerId: optionalTrimmedString(z.string().trim()),
 });
 
+export const visaTypeSchema = z.enum(
+  ["CPT", "INITIAL_OPT", "STEM_OPT", "H1B", "H4EAD", "GC", "US_CITIZEN"],
+  { message: "Select a visa type." }
+);
+
+export const dateOfBirthSchema = z.coerce
+  .date({ message: "Enter a valid date of birth." })
+  .refine((d) => d.getTime() < Date.now(), { message: "Date of birth must be in the past." });
+
 export const createConsultantSchema = createStaffUserSchema.extend({
   coordinatorId: z.string().trim().min(1, "A coordinator must own this consultant."),
+  offshoreOffice: z.enum(["LOCATION_1", "LOCATION_2"], { message: "Select an offshore office." }),
+  technology: z.string().trim().min(1, "Select or enter a technology.").max(100),
+  visaType: visaTypeSchema,
+  dateOfBirth: dateOfBirthSchema,
+});
+
+export const updateConsultantVisaDobSchema = z.object({
+  visaType: visaTypeSchema,
+  dateOfBirth: dateOfBirthSchema,
 });
 
 export const updateProfileFieldsSchema = z.object({

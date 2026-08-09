@@ -19,13 +19,14 @@ import {
   usernameSchema,
   updateProfileFieldsSchema,
   profileChangeRequestSchema,
+  updateConsultantVisaDobSchema,
 } from "@/lib/validation/user";
 import { logAudit, notifyCeos, notifyUser } from "@/lib/audit";
 import { UserFacingError } from "@/lib/errors";
 
 export type FormState = { error?: string; success?: string };
 
-async function requireActor(): Promise<SessionUser> {
+export async function requireActor(): Promise<SessionUser> {
   const actor = await getCurrentUser();
   if (!actor) throw new Error("Not authenticated");
   return actor;
@@ -147,11 +148,27 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
     email: formData.get("email"),
     phone: formData.get("phone"),
     coordinatorId: formData.get("coordinatorId"),
+    offshoreOffice: formData.get("offshoreOffice"),
+    technology: formData.get("technology"),
+    visaType: formData.get("visaType"),
+    dateOfBirth: formData.get("dateOfBirth"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { firstName, lastName, username, password, email, phone, coordinatorId } = parsed.data;
+  const {
+    firstName,
+    lastName,
+    username,
+    password,
+    email,
+    phone,
+    coordinatorId,
+    offshoreOffice,
+    technology,
+    visaType,
+    dateOfBirth,
+  } = parsed.data;
 
   const strength = validatePasswordStrength(password);
   if (!strength.valid) return { error: strength.reason };
@@ -182,6 +199,10 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
         phone,
         locationId: coordinator.locationId,
         coordinatorId: coordinator.id,
+        offshoreOffice,
+        technology,
+        visaType,
+        dateOfBirth,
         createdByUserId: actor.id,
       },
     });
@@ -193,7 +214,14 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
       targetEntityId: user.id,
       targetUserId: user.id,
       locationId: user.locationId,
-      metadata: { role: "CONSULTANT", coordinatorId: coordinator.id },
+      metadata: {
+        role: "CONSULTANT",
+        coordinatorId: coordinator.id,
+        offshoreOffice,
+        technology,
+        visaType,
+        dateOfBirth: dateOfBirth.toISOString(),
+      },
     });
 
     revalidatePath("/users/consultants");
@@ -451,6 +479,41 @@ export async function updateProfileFieldsAction(_prevState: FormState, formData:
   revalidatePath("/profile");
   revalidatePath("/users");
   return { success: "Profile updated." };
+}
+
+/** Consultant-only fields, editable by whoever can manage that consultant (not self-editable). */
+export async function updateConsultantVisaDobAction(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireActor();
+  const userId = String(formData.get("userId"));
+
+  const parsed = updateConsultantVisaDobSchema.safeParse({
+    visaType: formData.get("visaType"),
+    dateOfBirth: formData.get("dateOfBirth"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target || target.deletedAt || target.role !== "CONSULTANT") return { error: "Consultant not found." };
+  if (!canManageUser(actor, target as ScopeSubject)) return { error: "Not authorized." };
+
+  const { visaType, dateOfBirth } = parsed.data;
+
+  await prisma.user.update({ where: { id: userId }, data: { visaType, dateOfBirth } });
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "PROFILE_UPDATED",
+    targetEntityType: "User",
+    targetEntityId: userId,
+    targetUserId: userId,
+    locationId: target.locationId,
+    metadata: { visaType, dateOfBirth: dateOfBirth.toISOString() },
+  });
+
+  revalidatePath("/users/consultants");
+  return { success: "Visa type and date of birth updated." };
 }
 
 const PROFILE_FIELD_LABELS: Record<string, string> = {

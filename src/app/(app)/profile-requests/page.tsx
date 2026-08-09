@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
+import { VISA_TYPE_LABELS } from "@/lib/visaTypeLabels";
 import { markProfileRequestReadAction, markAllProfileRequestsReadAction } from "./actions";
 
 export default async function ProfileRequestsPage() {
@@ -13,7 +15,16 @@ export default async function ProfileRequestsPage() {
     where: { recipientUserId: actor.id, type: "PROFILE_CHANGE_REQUESTED" },
     orderBy: { createdAt: "desc" },
     take: 200,
-    include: { sourceAuditLog: { select: { targetUserId: true } } },
+    include: {
+      sourceAuditLog: {
+        select: {
+          targetUserId: true,
+          targetUser: {
+            select: { offshoreOffice: true, technology: true, visaType: true, dateOfBirth: true },
+          },
+        },
+      },
+    },
   });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -41,6 +52,24 @@ export default async function ProfileRequestsPage() {
               <p className={`text-sm ${n.isRead ? "text-[var(--color-ink)]" : "font-semibold text-[var(--color-ink)]"}`}>{n.title}</p>
               <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{n.body}</p>
               <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{n.createdAt.toLocaleString()}</p>
+              {n.sourceAuditLog?.targetUser && (
+                <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
+                  Offshore Office:{" "}
+                  {n.sourceAuditLog.targetUser.offshoreOffice
+                    ? OFFSHORE_OFFICE_LABELS[n.sourceAuditLog.targetUser.offshoreOffice]
+                    : "—"}
+                  {" · "}
+                  Technology: {n.sourceAuditLog.targetUser.technology ?? "—"}
+                  {" · "}
+                  Visa Type:{" "}
+                  {n.sourceAuditLog.targetUser.visaType ? VISA_TYPE_LABELS[n.sourceAuditLog.targetUser.visaType] : "—"}
+                  {" · "}
+                  Date of Birth:{" "}
+                  {n.sourceAuditLog.targetUser.dateOfBirth
+                    ? n.sourceAuditLog.targetUser.dateOfBirth.toLocaleDateString(undefined, { timeZone: "UTC" })
+                    : "—"}
+                </p>
+              )}
               {n.sourceAuditLog?.targetUserId && (
                 <Link
                   href={`/users/consultants/${n.sourceAuditLog.targetUserId}`}

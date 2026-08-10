@@ -128,6 +128,25 @@ function CreateUserFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConsultant, firstName, techValue, techOther]);
 
+  const usernameField = (
+    <div>
+      <label htmlFor="field-username" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+        Username
+      </label>
+      <input
+        id="field-username"
+        name="username"
+        required
+        value={username}
+        onChange={(e) => {
+          setUsername(e.target.value);
+          setUsernameTouched(true);
+        }}
+        className="w-full field"
+      />
+    </div>
+  );
+
   return (
     <form action={formAction}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -145,22 +164,57 @@ function CreateUserFields({
           />
         </div>
         <Field label="Last name" name="lastName" required />
-        <div>
-          <label htmlFor="field-username" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
-            Username
-          </label>
-          <input
-            id="field-username"
-            name="username"
-            required
-            value={username}
-            onChange={(e) => {
-              setUsername(e.target.value);
-              setUsernameTouched(true);
-            }}
-            className="w-full field"
-          />
-        </div>
+        {isConsultant ? (
+          <div>
+            <label htmlFor="field-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+              Technology
+            </label>
+            {techValue === OTHER_TECHNOLOGY_VALUE ? (
+              <input
+                id="field-technology"
+                name="technology"
+                required
+                placeholder="Enter technology"
+                value={techOther}
+                onChange={(e) => setTechOther(e.target.value)}
+                className="w-full field"
+              />
+            ) : (
+              <select
+                id="field-technology"
+                name="technology"
+                required
+                className="w-full field"
+                value={techValue}
+                onChange={(e) => setTechValue(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select a technology
+                </option>
+                {TECHNOLOGY_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.value}
+                  </option>
+                ))}
+                <option value={OTHER_TECHNOLOGY_VALUE}>Other</option>
+              </select>
+            )}
+            {techValue === OTHER_TECHNOLOGY_VALUE && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTechValue("");
+                  setTechOther("");
+                }}
+                className="mt-1 text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+              >
+                ← Choose from list instead
+              </button>
+            )}
+          </div>
+        ) : (
+          usernameField
+        )}
         <Field label="Password" name="password" type="text" required />
         <Field label="Email" name="email" type="email" />
         <Field label="Phone" name="phone" />
@@ -196,53 +250,7 @@ function CreateUserFields({
                 ))}
               </select>
             </div>
-            <div>
-              <label htmlFor="field-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
-                Technology
-              </label>
-              {techValue === OTHER_TECHNOLOGY_VALUE ? (
-                <input
-                  id="field-technology"
-                  name="technology"
-                  required
-                  placeholder="Enter technology"
-                  value={techOther}
-                  onChange={(e) => setTechOther(e.target.value)}
-                  className="w-full field"
-                />
-              ) : (
-                <select
-                  id="field-technology"
-                  name="technology"
-                  required
-                  className="w-full field"
-                  value={techValue}
-                  onChange={(e) => setTechValue(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Select a technology
-                  </option>
-                  {TECHNOLOGY_OPTIONS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.value}
-                    </option>
-                  ))}
-                  <option value={OTHER_TECHNOLOGY_VALUE}>Other</option>
-                </select>
-              )}
-              {techValue === OTHER_TECHNOLOGY_VALUE && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTechValue("");
-                    setTechOther("");
-                  }}
-                  className="mt-1 text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-                >
-                  ← Choose from list instead
-                </button>
-              )}
-            </div>
+            {usernameField}
             <div>
               <label htmlFor="field-visaType" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
                 Visa Type

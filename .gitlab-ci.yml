@@ -1,0 +1,31 @@
+stages:
+  - verify
+
+# Lint + build on every push, so a broken build or a regressed permission
+# check can't reach production silently (deploys are manual `vercel --prod`,
+# nothing else gates them today — see CLAUDE.md "Known Limitations").
+# DATABASE_URL/DIRECT_URL here are placeholders, not real credentials: the
+# build never queries the DB (every route is server-rendered on demand, not
+# statically generated against live data), so `prisma generate`/`next build`
+# only need the env vars to be *present*, not valid or reachable. Verified
+# locally by building against an unreachable dummy connection string.
+lint_and_build:
+  stage: verify
+  image: node:22
+  variables:
+    DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+    DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run lint
+    - npm run build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

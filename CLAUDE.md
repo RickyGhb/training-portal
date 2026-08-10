@@ -456,7 +456,7 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 - Lock file: `prisma/migrations/migration_lock.toml` (PostgreSQL)
 
 ### Deployment
-- Hosting: Vercel, project `ricky-s-team1/training-portal`. **No CI/CD, no GitHub/GitLab webhook integration** — deploys are manual: `npx vercel --prod` from this folder. Pushing to `gitlab/main` does NOT redeploy the live app by itself.
+- Hosting: Vercel, project `ricky-s-team1/training-portal`. **No GitHub/GitLab webhook integration** — deploys are manual: `npx vercel --prod` from this folder. Pushing to `gitlab/main` does NOT redeploy the live app by itself. A `.gitlab-ci.yml` (lint + build) exists as of 2026-08-10 but currently has no live runner to execute it (see Next Steps) — it does not gate or trigger deploys either way.
 - Env vars (`DATABASE_URL`, `DIRECT_URL`) are set in Vercel's Production environment already; rotate via `vercel env rm/add` if the Supabase password changes, then redeploy.
 - `.vercel/project.json` (small, not gitignored... actually is present in the synced folder) means `vercel` commands work immediately without re-linking on either machine this repo is synced to.
 
@@ -546,7 +546,8 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 6. Expand Coordinator permissions (path/extra-course assignment) if the product calls for it
 7. Expand CEO-inbox Notification triggers beyond report-export/password-reset/deletion, if useful (the Placement Pipeline's `MARKETING_READY` notifications already go to non-CEO roles, see Key Features)
 8. Revisit Vercel/Supabase tier as usage grows past pilot scale — more roles and a placement pipeline mean more concurrent sessions and writes
-9. Wire up CI (lint/build/e2e on every push) and error monitoring (e.g. Sentry) — still manual/absent as of 2026-08-10
+9. ~~Wire up CI (lint/build on every push)~~ — `.gitlab-ci.yml` added 2026-08-10, but pipelines sit permanently `Pending` because this GitLab instance (`gitlab.evr-tec.com`) has no live runner: the one project runner on record (`#4`, `YGZDobYsd`) shows `Active: Yes` but last checked in 2 years ago — no `gitlab-runner` process is actually running anywhere. The pipeline definition is real and was verified to pass locally (`npm run lint && npm run build`); it just has nowhere to execute until someone installs/registers a live runner (Docker on a dev machine, or a small always-on VPS). E2E-in-CI is a further follow-on beyond that, needing staging DB + Upstash credentials added as GitLab CI/CD variables.
+10. Error monitoring (e.g. Sentry) — still absent as of 2026-08-10
 
 ---
 

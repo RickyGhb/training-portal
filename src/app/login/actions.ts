@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPasswordConstantTime } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
+import { checkLoginRateLimit } from "@/lib/rateLimit";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,11 +28,16 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
   const { username, password } = parsed.data;
   const usernameLower = username.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({ where: { usernameLower } });
-
   const headerList = await headers();
   const ipAddress = headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = headerList.get("user-agent");
+
+  const withinLimit = await checkLoginRateLimit(ipAddress, usernameLower);
+  if (!withinLimit) {
+    return { error: "Too many login attempts. Please wait a few minutes and try again." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { usernameLower } });
 
   // Generic error message regardless of which check fails, to avoid
   // leaking whether a username exists. The password comparison always runs

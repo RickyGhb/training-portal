@@ -219,6 +219,11 @@ model User {
   @@index([managerId])
   @@index([locationManagerId])
   @@index([status])
+  @@index([offshoreTeamLeadId])
+  @@index([trainerUserId])
+  @@index([otterTeamUserId])
+  @@index([offshoreOffice])
+  @@index([marketingStatus])
 }
 
 model TrainingPath {

@@ -28,16 +28,25 @@ export async function evaluateMarketingReadiness(consultantUserId: string) {
   const ready = latestTrainerFeedback?.verdict === "READY" && latestOtterFeedback?.verdict === "READY";
   if (!ready) return;
 
-  await prisma.user.update({ where: { id: consultantUserId }, data: { marketingStatus: "IN_MARKETING" } });
+  // Status flip + its audit trail must land together — a crash between the two
+  // would otherwise leave a consultant silently "In Marketing" with no record
+  // of why. Notifications below stay outside the transaction: they're
+  // best-effort fan-out and shouldn't roll back a correct status change.
+  const entry = await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: consultantUserId }, data: { marketingStatus: "IN_MARKETING" } });
 
-  const entry = await logAudit({
-    actorUserId: null,
-    actionType: "MARKETING_STATUS_CHANGED",
-    targetEntityType: "User",
-    targetEntityId: consultantUserId,
-    targetUserId: consultantUserId,
-    locationId: consultant.locationId,
-    metadata: { newStatus: "IN_MARKETING" },
+    return logAudit(
+      {
+        actorUserId: null,
+        actionType: "MARKETING_STATUS_CHANGED",
+        targetEntityType: "User",
+        targetEntityId: consultantUserId,
+        targetUserId: consultantUserId,
+        locationId: consultant.locationId,
+        metadata: { newStatus: "IN_MARKETING" },
+      },
+      tx
+    );
   });
 
   const recipientIds = new Set<string>();

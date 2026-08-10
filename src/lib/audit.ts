@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { AuditActionType, NotificationType, Prisma } from "@/generated/prisma/client";
+import type { AuditActionType, NotificationType, Prisma, PrismaClient } from "@/generated/prisma/client";
 
 type LogAuditInput = {
   actorUserId: string | null;
@@ -15,8 +15,16 @@ type LogAuditInput = {
   metadata?: Prisma.InputJsonValue;
 };
 
-export async function logAudit(input: LogAuditInput) {
-  return prisma.auditLog.create({
+/**
+ * `client` defaults to the global singleton but can be a `$transaction`
+ * callback's `tx` so the audit row commits atomically with the mutation it
+ * describes (see evaluateMarketingReadiness for the motivating case).
+ */
+export async function logAudit(
+  input: LogAuditInput,
+  client: PrismaClient | Prisma.TransactionClient = prisma
+) {
+  return client.auditLog.create({
     data: {
       actorUserId: input.actorUserId,
       actionType: input.actionType,

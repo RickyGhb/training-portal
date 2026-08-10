@@ -171,9 +171,9 @@ export function canAssignTrainingPath(actor: SessionUser, target: ScopeSubject):
   return canManageUser(actor, target);
 }
 
-/** Can the actor export reports (CEO, Location Manager, Location Admin only)? */
+/** Can the actor export reports (CEO, Location Manager only)? */
 export function canExportReports(actorRole: Role): boolean {
-  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER" || actorRole === "LOCATION_ADMIN";
+  return actorRole === "CEO" || actorRole === "LOCATION_MANAGER";
 }
 
 /** Can the actor bulk-reassign consultants between coordinators? */

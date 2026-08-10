@@ -40,7 +40,6 @@ export function navItemsForRole(role: Role): NavItem[] {
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
-        { label: "Exports", href: "/reports/exports", enabled: true },
         { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "COORDINATOR":

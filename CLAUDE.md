@@ -30,7 +30,7 @@ This file is the deep-reference doc. For narrative/onboarding versions of the sa
 - Node.js, `server-only` guarded modules
 - PostgreSQL hosted on Supabase (project "Training-Project", region us-west-2)
 - Prisma ORM 7.9.1 with the `@prisma/adapter-pg` driver adapter (`src/lib/prisma.ts`) — pooled `DATABASE_URL` (Supabase Transaction Pooler) for runtime queries, direct `DIRECT_URL` for migrations (`prisma.config.ts`)
-- **Single shared database for local dev and production** — no separate staging DB (see Known Limitations)
+- **Separate staging and production Supabase projects** (staging added 2026-08-10, project "Training-Project-Staging", same region) — local dev's `.env.local` points at staging by default, so local testing no longer writes real rows into the database the live app reads (see Known Limitations)
 
 **Authentication & Security:**
 - Custom session-based auth: 32-byte random tokens, SHA256-hashed before storage, httpOnly cookies, 12-hour TTL, `secure` flag in production, `sameSite=lax`
@@ -275,6 +275,7 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 ### 1. User Management
 - Five-role hierarchy, each creating/managing only roles below it (see RBAC section)
 - Consultant: single-active-session enforcement
+- Login is rate-limited (`src/lib/rateLimit.ts`, Upstash Redis): 20 attempts/10min per IP and 8 attempts/15min per username, both must pass or `loginAction` returns a generic "too many attempts" error before ever touching the DB. Fails open if Upstash isn't configured.
 - Status lifecycle: ACTIVE → DEACTIVATED (reversible, blocks login) → DELETED (soft delete, reversible only by direct DB action, kept for audit/reporting under "Deleted (archived)")
 - Bulk consultant reassignment between coordinators, scoped to the actor's manageable set
 - Self-service password change (`ChangePasswordButton` in the sidebar) — verifies current password, signs out every session including the current one, redirects to `/login`
@@ -416,9 +417,13 @@ Bulk Reassignment, per-consultant detail, and the legacy per-role list pages are
 ## Development Setup & Commands
 
 ### Environment Setup
-1. PostgreSQL database on Supabase — `.env.local` needs `DATABASE_URL` (pooled) and `DIRECT_URL` (direct, for migrations)
-2. Node.js 18+, npm
-3. First time on a new machine: `npm install` before `npm run dev`/`npm run build` (this repo lives in a Syncthing-synced folder; `node_modules`/`.next` are excluded from sync, see `docs/Getting-Started.md`)
+1. PostgreSQL database on Supabase — `.env.local` needs `DATABASE_URL` (pooled) and `DIRECT_URL` (direct, for migrations). As of 2026-08-10 this points at the **staging** project ("Training-Project-Staging"), not production — see "Staging vs. production" below.
+2. `.env.local` also needs `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` for login rate limiting to actually enforce (optional — login rate limiting fails open without them).
+3. Node.js 18+, npm
+4. First time on a new machine: `npm install` before `npm run dev`/`npm run build` (this repo lives in a Syncthing-synced folder; `node_modules`/`.next` are excluded from sync, see `docs/Getting-Started.md`)
+
+### Staging vs. production (added 2026-08-10)
+Two separate Supabase projects now exist: **Training-Project** (production, `us-west-2`) and **Training-Project-Staging** (same region). `.env.local` — the file `npm run dev` and every `--env-file=.env.local` script use — points at staging. `.env` still holds the original production connection strings as a reference/backup but is not read by the app or by any script (Next.js prefers `.env.local` when both are present; scripts explicitly pass `--env-file=.env.local`). **Caveat:** `prisma.config.ts` uses plain `dotenv/config`, which only auto-loads `.env`, not `.env.local` — so running `npx prisma migrate deploy`/`db:migrate` bare (without an explicit env override) targets **production**, not staging. To run a migration against staging, either export `DATABASE_URL`/`DIRECT_URL` from `.env.local` into the shell first, or use a small script that reads `.env.local` and spawns the Prisma CLI with those values explicitly set (this is how the 8 existing migrations were applied to staging on 2026-08-10). Staging has its own bootstrap CEO account (`staging.ceo`, seeded via `npm run seed:ceo`) — unrelated to production's CEO account.
 
 ### Scripts (`package.json`)
 ```bash
@@ -497,14 +502,13 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 - **Coordinators cannot assign paths/extra courses** (not yet enabled by design, not an oversight)
 - **Notifications** are CEO-only recipients (could expand to other roles)
-- **No login rate limiting/lockout** — failed logins are logged (`LOGIN_FAILED`) but nothing blocks repeated attempts; fine at ~200 known internal users, would need a proper rate limiter (e.g. Upstash Redis, since Vercel functions are stateless) before wider/internet-facing rollout
+- **Login rate limiting** (added 2026-08-10, `src/lib/rateLimit.ts`) — two Upstash Redis sliding-window limiters (20/10min per IP, 8/15min per username, both must pass) sit in front of `loginAction`. Fails open (no limiting) if `UPSTASH_REDIS_REST_URL`/`_TOKEN` aren't set, so environments without Upstash configured still work, just unprotected.
 - **No "forgot password" self-service flow** — self-service *change* (knowing your current password) exists (`ChangePasswordButton`), but there's no unauthenticated reset-by-email flow; a forgotten password requires another admin to reset it
-- **Single shared database for dev and prod** — local testing writes real rows into the same DB the live app reads; be careful what you create while testing (see the two temporary-data-then-cleanup patterns in `scripts/cleanup-demo.ts` and `scripts/e2e-cleanup-disposable-users.ts` for the safe way to do this)
+- **Separate staging Supabase project exists** (added 2026-08-10) but local dev and staging still share one dataset the same way prod alone used to — be careful what you create while testing (see the two temporary-data-then-cleanup patterns in `scripts/cleanup-demo.ts` and `scripts/e2e-cleanup-disposable-users.ts` for the safe way to do this)
 - **Export route CSRF exposure** — see Reporting & Exports section above; log-noise impact only, not a data leak
 - **Argon2 is a native Node module** — confirmed working on Vercel; verify native module support first if hosting ever changes
 - **Orphaned legacy user-list routes** — see "Orphaned routes" section above
 - **Stale error copy in two catalog actions** — see "Known small bugs" above
-- **No separate staging database** — worth doing before onboarding real users at volume
 
 ---
 
@@ -537,11 +541,12 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 1. Fix the two stale "Only the CEO can manage..." error strings (see "Known small bugs")
 2. Decide what to do with the orphaned legacy per-role user-list pages — delete them, redirect them to `/users/management`, or wire the per-consultant "Training & progress" link into the main `/users/management` table
 3. Refresh `docs/Getting-Started.md`, `docs/Admin-Guide.md`, `docs/Build-Progress.md` for the role rename + location-scoping + the 2026-08-09 offshore/placement roles (currently only this file reflects all of it)
-4. Consider a separate staging database before wider rollout
-5. Login rate-limiting and a self-service "forgot password" flow, if/when moving past pilot scale
+4. ~~Consider a separate staging database before wider rollout~~ — done 2026-08-10 ("Training-Project-Staging")
+5. A self-service "forgot password" flow, if/when moving past pilot scale (login rate limiting is done, see Key Features)
 6. Expand Coordinator permissions (path/extra-course assignment) if the product calls for it
 7. Expand CEO-inbox Notification triggers beyond report-export/password-reset/deletion, if useful (the Placement Pipeline's `MARKETING_READY` notifications already go to non-CEO roles, see Key Features)
-8. Revisit Vercel/Supabase tier as usage grows past pilot scale — more roles and a placement pipeline mean more concurrent sessions and writes; a real staging Supabase project is worth doing before onboarding real users at volume regardless (see "No separate staging database" above)
+8. Revisit Vercel/Supabase tier as usage grows past pilot scale — more roles and a placement pipeline mean more concurrent sessions and writes
+9. Wire up CI (lint/build/e2e on every push) and error monitoring (e.g. Sentry) — still manual/absent as of 2026-08-10
 
 ---
 
@@ -549,5 +554,6 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 For questions about the codebase structure, architectural decisions, or development workflow, refer to comments in key files (`src/lib/auth/rbac.ts`, `prisma/schema.prisma`, etc.) and `docs/Getting-Started.md`.
 
-**Last Updated:** 2026-08-09 — added the Offshore Manager / Offshore Team Lead / Trainer / Otter Team roles and the full post-training placement pipeline (dual Trainer+Otter sign-off, marketing-readiness rollup, Calendly link-out scheduling, Location Overview dashboard); documented the Consultant `technology`/`visaType`/`dateOfBirth`/`offshoreOffice` fields that were added earlier the same day but missed in the previous pass; fixed and documented two bugs found during a full 9-role permission audit (dashboard Coordinator-filter leak, `/users/management` dead-end for the new roles).
+**Last Updated:** 2026-08-10 — enterprise-scale hardening pass: added indexes on the offshore/placement `User` fields, wrapped the marketing-readiness status flip in a transaction, added security headers and top-level error boundaries, added login rate limiting (Upstash Redis), and stood up a separate staging Supabase project so local dev no longer writes into the production database. Restricted report-export access to CEO/Location Manager only (previously included Location Admin). See "Staging vs. production" and the rate-limiting note under User Management for details.
+**Previously (2026-08-09):** added the Offshore Manager / Offshore Team Lead / Trainer / Otter Team roles and the full post-training placement pipeline (dual Trainer+Otter sign-off, marketing-readiness rollup, Calendly link-out scheduling, Location Overview dashboard); documented the Consultant `technology`/`visaType`/`dateOfBirth`/`offshoreOffice` fields that were added earlier the same day but missed in the previous pass; fixed and documented two bugs found during a full 9-role permission audit (dashboard Coordinator-filter leak, `/users/management` dead-end for the new roles).
 **Generated by:** Cowork Claude Documentation Generator

@@ -27,6 +27,7 @@ import {
 } from "@/lib/validation/user";
 import { logAudit, notifyCeos, notifyUser } from "@/lib/audit";
 import { UserFacingError } from "@/lib/errors";
+import * as Sentry from "@sentry/nextjs";
 
 export type FormState = { error?: string; success?: string };
 
@@ -41,9 +42,11 @@ async function assertUsernameAvailable(username: string) {
   if (existing) throw new UserFacingError("That username is already taken.");
 }
 
-/** Catch-block helper: only ever surface messages we deliberately wrote for the user (UserFacingError). Anything else (Prisma errors, unexpected exceptions) would leak internal details. */
+/** Catch-block helper: only ever surface messages we deliberately wrote for the user (UserFacingError). Anything else (Prisma errors, unexpected exceptions) would leak internal details — report those to Sentry instead, since catching them here means they'd otherwise never reach onRequestError. */
 function toFormError(err: unknown): { error: string } {
-  return { error: err instanceof UserFacingError ? err.message : "Something went wrong. Please try again." };
+  if (err instanceof UserFacingError) return { error: err.message };
+  Sentry.captureException(err);
+  return { error: "Something went wrong. Please try again." };
 }
 
 /** Creates a LOCATION_MANAGER, LOCATION_ADMIN, or COORDINATOR account. */

@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { randomBytes, createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { MarketingStatus, OffshoreOffice, Role, UserStatus } from "@/generated/prisma/client";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/sessionCookieName";
 
-export const SESSION_COOKIE_NAME = "tp_session";
+export { SESSION_COOKIE_NAME };
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export type SessionUser = {

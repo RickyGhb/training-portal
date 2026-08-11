@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canExportReports } from "@/lib/auth/rbac";
 import { getConsultantReportRows, type ConsultantReportFilters } from "@/lib/reports";
 import { logAudit, notifyCeos } from "@/lib/audit";
+import { verifyCsrfToken } from "@/lib/csrf";
 
 const EXPORT_COLUMNS = [
   { header: "First name", key: "firstName" },
@@ -51,6 +52,17 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
+
+  // CSRF: this is a plain GET Route Handler, not a Server Action, so it
+  // doesn't get Next.js's built-in Server Action CSRF protection. A crafted
+  // cross-site link/auto-navigation could otherwise trigger an export using
+  // the victim's session cookie (SameSite=lax still allows top-level GET
+  // navigation to carry it). See src/lib/csrf.ts for how the token is
+  // derived and why an attacker can't forge a valid one.
+  if (!(await verifyCsrfToken(params.get("csrfToken")))) {
+    return NextResponse.json({ error: "Invalid or missing CSRF token. Reload the export page and try again." }, { status: 403 });
+  }
+
   const format = params.get("format") === "xlsx" ? "xlsx" : "csv";
   const filters: ConsultantReportFilters = {
     locationId: params.get("locationId") || undefined,

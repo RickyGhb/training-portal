@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { userVisibilityFilter, canExportReports } from "@/lib/auth/rbac";
+import { getCsrfToken } from "@/lib/csrf";
 
 export default async function ExportsPage({
   searchParams,
@@ -19,6 +20,8 @@ export default async function ExportsPage({
     trainingPathId: typeof sp.trainingPathId === "string" ? sp.trainingPathId : "",
     status: typeof sp.status === "string" ? sp.status : "",
   };
+
+  const csrfToken = await getCsrfToken();
 
   const [locations, coordinators, trainingPaths] = await Promise.all([
     actor.role === "CEO"
@@ -39,6 +42,7 @@ export default async function ExportsPage({
       </p>
 
       <form method="GET" action="/api/reports/export" className="mt-6 space-y-4 card">
+        {csrfToken && <input type="hidden" name="csrfToken" value={csrfToken} />}
         <div className="flex flex-wrap gap-3">
           {locations.length > 0 && (
             <div>

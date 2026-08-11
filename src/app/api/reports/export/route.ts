@@ -5,6 +5,7 @@ import { canExportReports } from "@/lib/auth/rbac";
 import { getConsultantReportRows, type ConsultantReportFilters } from "@/lib/reports";
 import { logAudit, notifyCeos } from "@/lib/audit";
 import { verifyCsrfToken } from "@/lib/csrf";
+import { csvEscape } from "@/lib/csvEscape";
 
 const EXPORT_COLUMNS = [
   { header: "First name", key: "firstName" },
@@ -23,13 +24,6 @@ const EXPORT_COLUMNS = [
   { header: "Last completed item", key: "lastCompletedItem" },
   { header: "Last activity date", key: "lastActivityDate" },
 ] as const;
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
 
 function toExportValue(row: Awaited<ReturnType<typeof getConsultantReportRows>>[number], key: string): string {
   switch (key) {

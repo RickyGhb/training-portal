@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth/session";
-import { getConsultantProgress } from "@/lib/content-resolution";
+import { getConsultantProgressBatch } from "@/lib/content-resolution";
 
 /**
  * Reporting queries per Technical Implementation Blueprint.md §12 (dashboard
@@ -56,7 +56,7 @@ export async function getDashboardAggregates(actor: SessionUser): Promise<Dashbo
     }),
   ]);
 
-  const progresses = await Promise.all(consultants.map((c) => getConsultantProgress(c.id)));
+  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
 
   const countBy = new Map<string, number>();
   const coordCountBy = new Map<string, number>();
@@ -64,11 +64,11 @@ export async function getDashboardAggregates(actor: SessionUser): Promise<Dashbo
   const pathCompletion = new Map<string, { totalPct: number; count: number }>();
   const coordCompletion = new Map<string, { totalPct: number; count: number }>();
 
-  consultants.forEach((c, i) => {
+  consultants.forEach((c) => {
     const pathName = c.trainingAssignment?.trainingPath.name ?? "Unassigned";
     const coordName = c.coordinator ? `${c.coordinator.firstName} ${c.coordinator.lastName}` : "Independent / none";
     const locName = c.location?.name ?? "No location";
-    const pct = progresses[i].completionPercentage;
+    const pct = progressByConsultant.get(c.id)?.completionPercentage ?? 0;
 
     countBy.set(pathName, (countBy.get(pathName) ?? 0) + 1);
     coordCountBy.set(coordName, (coordCountBy.get(coordName) ?? 0) + 1);
@@ -166,24 +166,27 @@ export async function getConsultantReportRows(
     },
   });
 
-  const progresses = await Promise.all(consultants.map((c) => getConsultantProgress(c.id)));
+  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
 
-  return consultants.map((c, i) => ({
-    id: c.id,
-    firstName: c.firstName,
-    lastName: c.lastName,
-    username: c.username,
-    email: c.email,
-    phone: c.phone,
-    locationName: c.location?.name ?? null,
-    coordinatorName: c.coordinator ? `${c.coordinator.firstName} ${c.coordinator.lastName}` : null,
-    primaryTrainingPathName: c.trainingAssignment?.trainingPath.name ?? null,
-    extraCourseNames: c.extraCourses.map((ec) => ec.course.name),
-    status: c.status,
-    completedVideos: progresses[i].completedVideos,
-    totalVideos: progresses[i].totalVideos,
-    completionPercentage: progresses[i].completionPercentage,
-    lastCompletedItem: progresses[i].lastCompletedVideoTitle,
-    lastActivityDate: progresses[i].lastCompletedAt,
-  }));
+  return consultants.map((c) => {
+    const progress = progressByConsultant.get(c.id);
+    return {
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      username: c.username,
+      email: c.email,
+      phone: c.phone,
+      locationName: c.location?.name ?? null,
+      coordinatorName: c.coordinator ? `${c.coordinator.firstName} ${c.coordinator.lastName}` : null,
+      primaryTrainingPathName: c.trainingAssignment?.trainingPath.name ?? null,
+      extraCourseNames: c.extraCourses.map((ec) => ec.course.name),
+      status: c.status,
+      completedVideos: progress?.completedVideos ?? 0,
+      totalVideos: progress?.totalVideos ?? 0,
+      completionPercentage: progress?.completionPercentage ?? 0,
+      lastCompletedItem: progress?.lastCompletedVideoTitle ?? null,
+      lastActivityDate: progress?.lastCompletedAt ?? null,
+    };
+  });
 }

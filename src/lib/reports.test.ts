@@ -64,7 +64,7 @@ describe("getConsultantReportRows where-clause construction", () => {
 
   it("AND-combines scope and filters so a filter can only narrow, never widen scope", async () => {
     vi.doMock("@/lib/prisma", () => ({ prisma: { user: { findMany: findManyMock } } }));
-    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgress: vi.fn() }));
+    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgressBatch: vi.fn().mockResolvedValue(new Map()) }));
 
     const { getConsultantReportRows } = await import("@/lib/reports");
     const coordinator = actor("COORDINATOR", { id: "coord-1" });
@@ -81,7 +81,7 @@ describe("getConsultantReportRows where-clause construction", () => {
 
   it("DELETED status filter switches to deletedAt: not null instead of the status field", async () => {
     vi.doMock("@/lib/prisma", () => ({ prisma: { user: { findMany: findManyMock } } }));
-    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgress: vi.fn() }));
+    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgressBatch: vi.fn().mockResolvedValue(new Map()) }));
 
     const { getConsultantReportRows } = await import("@/lib/reports");
     await getConsultantReportRows(actor("CEO"), { status: "DELETED" });
@@ -92,7 +92,7 @@ describe("getConsultantReportRows where-clause construction", () => {
 
   it("a non-DELETED status filter keeps deletedAt: null and adds a status branch", async () => {
     vi.doMock("@/lib/prisma", () => ({ prisma: { user: { findMany: findManyMock } } }));
-    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgress: vi.fn() }));
+    vi.doMock("@/lib/content-resolution", () => ({ getConsultantProgressBatch: vi.fn().mockResolvedValue(new Map()) }));
 
     const { getConsultantReportRows } = await import("@/lib/reports");
     await getConsultantReportRows(actor("CEO"), { status: "ACTIVE" });

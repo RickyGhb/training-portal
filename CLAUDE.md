@@ -42,6 +42,7 @@ This file is the deep-reference doc. For narrative/onboarding versions of the sa
 - Zod 4 (validation, `src/lib/validation/`)
 - ExcelJS 4.4.0 (XLSX report export)
 - Playwright (`@playwright/test`) — E2E suite
+- Vitest (added 2026-08-10) — unit test suite, `src/**/*.test.ts`, see "Testing" below
 - ESLint 9 (`eslint-config-next`)
 - tsx (TypeScript execution for one-off scripts, outside the Next.js build)
 - `@sentry/nextjs` (added 2026-08-10, error monitoring) — manual (non-wizard) setup: `src/instrumentation-client.ts` (browser), `sentry.server.config.ts`/`sentry.edge.config.ts` loaded via `src/instrumentation.ts`'s `register()`, plus `onRequestError` wired there so uncaught Server Component/action/route-handler errors report automatically. `src/app/error.tsx`/`global-error.tsx` call `Sentry.captureException` directly. The one catch-and-swallow error path in the app — `toFormError()` in `src/app/(app)/users/actions.ts`, the only `catch` block across all server action files — also reports to Sentry before returning its generic message. DSN lives in `NEXT_PUBLIC_SENTRY_DSN` (public by design, write-only). No source-map upload configured (`withSentryConfig` isn't used, to avoid Turbopack build-wrapper risk) — stack traces in Sentry are minified; add a `SENTRY_AUTH_TOKEN` and wrap `next.config.ts` later if readable stack traces become worth the added build complexity.
@@ -437,9 +438,11 @@ npm run db:migrate        # prisma migrate dev (interactive, local schema change
 npm run db:deploy         # prisma migrate deploy (apply pending migrations, non-interactive — use this in prod)
 npm run db:studio         # prisma studio
 npm run seed:ceo          # scripts/seed-ceo.ts — one-time bootstrap of the first CEO account (env-var driven, idempotent)
-npm run seed:demo         # scripts/seed-demo.ts — populates a full fake org for demos (locations, hierarchy, catalog, progress); safe to re-run (upserts). The demo dataset this created on 2026-08-07 was fully removed on 2026-08-08 via scripts/cleanup-demo.ts.
+npm run seed:demo         # scripts/seed-demo.ts — populates a full fake org for demos (locations, hierarchy, catalog, progress); safe to re-run (upserts). The demo dataset this created on 2026-08-07 was fully removed on 2026-08-08 via scripts/cleanup-demo.ts. Requires a CEO account named exactly "tempadmin" to already exist (aborts otherwise) — run `CEO_USERNAME=tempadmin CEO_PASSWORD=... npm run seed:ceo` first on a fresh database (this is how staging got its demo data on 2026-08-10; the earlier `staging.ceo` bootstrap account from when staging was first created is separate and still exists too).
 npm run test:e2e          # playwright test
 npm run test:e2e:ui       # playwright test --ui
+npm run test:unit         # vitest run — see "Testing" below
+npm run test:unit:watch   # vitest (watch mode)
 ```
 
 ### Scripts without a package.json entry (run directly)
@@ -448,6 +451,72 @@ node --env-file=.env.local -r tsx/cjs scripts/cleanup-demo.ts             # dry 
 node --env-file=.env.local -r tsx/cjs scripts/cleanup-demo.ts --confirm    # actually deletes the seed-demo.ts dataset by exact identity (usernames/location codes/course+path names/video driveFileIds), in a single transaction, respecting the cascade rules above; also resets the CEO's password (seed-demo.ts overwrites it with a shared demo password)
 node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   # deletes every User whose username starts with "e2e-" — called automatically by e2e/fixtures.ts after mutating Playwright tests
 ```
+
+### Testing (added/expanded 2026-08-10)
+
+**Unit tests** (`npm run test:unit`, Vitest, `vitest.config.mts`): 182 tests across 11 files in
+`src/lib/`, added the same day as an N+1-queries/no-RBAC-tests/no-new-role-E2E audit finding.
+- **`src/lib/auth/rbac.ts`** — the RBAC matrix, all 20 exported functions, ~92 cases. This file
+  has zero runtime imports (only type-only ones), so it needs no mocking at all.
+- Other pure files with dedicated tests: `drive.ts`, `validation/user.ts`, `validation/catalog.ts`,
+  `nav.ts`, `roleLabels.ts`/`offshoreOfficeLabels.ts`/`visaTypeLabels.ts` (combined in
+  `labels.test.ts`), `technologyOptions.ts`.
+- Files needing light mocking (`vi.mock` on `@/lib/prisma`, `@/lib/audit`, or `next/headers`):
+  `reports.ts` (had to export the previously-private `consultantScopeFilter` — one-line change,
+  no behavior change), `marketingReadiness.ts`, `content-resolution.ts`, `csrf.ts`.
+- Deliberately **not** unit-tested (DB/session-coupled with little isolable logic — better left to
+  E2E): `auth/session.ts`, `audit.ts`, `rateLimit.ts`, `prisma.ts`.
+- **Two config gotchas, both already solved in `vitest.config.mts`, worth knowing before adding
+  more test files:** (1) any file that does `import "server-only"` (`reports.ts`,
+  `marketingReadiness.ts`, `content-resolution.ts`, `csrf.ts`) throws under plain Vitest/Node
+  unless `server-only` is aliased to its own no-op `empty.js` stub — Next's bundler normally does
+  this via the `react-server` export condition, which Vitest doesn't set. (2) `src/lib/prisma.ts`
+  constructs its client eagerly at import time and throws if `DATABASE_URL` is unset, even in
+  test files that only mock prisma calls and never really connect — `vitest.config.mts` sets a
+  dummy `DATABASE_URL` for the whole test run to work around this (never a real DB URL).
+- Wired into CI: `.github/workflows/ci.yml` runs `npm run test:unit` between lint and build.
+
+**E2E** (`npm run test:e2e`, Playwright, staging DB): added `e2e/offshore.spec.ts`,
+`e2e/trainer-otter.spec.ts`, `e2e/marketing-pipeline.spec.ts` (added 2026-08-10) covering the four
+2026-08-09 offshore/placement roles end to end — Team Lead creation/assignment, Trainer/Otter
+feedback submission, and the full dual-sign-off pipeline (`evaluateMarketingReadiness`) flipping a
+consultant to "In Marketing" only once **both** verdicts are READY, not just one. All disposable
+users are created via the existing `disposableUsername()`/`deleteDisposableUsers()` pattern — no
+new seed data.
+
+Two shared-fixture bugs in `e2e/fixtures.ts`'s `loginAs()` were found and fixed while writing these
+(both fixes are strictly safer for every existing spec too, not just the new ones):
+1. `/login` redirects an already-authenticated visitor straight to `/dashboard` (see
+   `src/app/login/page.tsx`) — switching identity within one test (e.g. CEO → a role it just
+   created) used to hang forever waiting for a login form that never rendered. Fixed by clearing
+   cookies before every `loginAs()` call.
+2. `loginAs()` used to hard-assert `toHaveURL(/\/dashboard/)`, but `OFFSHORE_MANAGER`/
+   `OFFSHORE_TEAM_LEAD`/`TRAINER`/`OTTER_TEAM` get redirected *past* `/dashboard` straight to their
+   own landing page (see the redirect map in `dashboard/page.tsx`) — this old assertion was too
+   strict for those four roles. Fixed to just assert the visitor left `/login`, whatever they
+   landed on. A test asserting an RBAC redirect for one of these four roles must expect the
+   *final* destination (e.g. `/offshore/my-consultants`), not `/dashboard` itself, since the
+   redirect chains through it.
+
+**Operational gotcha found running the full suite for the first time against staging (2026-08-10),
+not yet fixed, worth knowing:** the login rate limiter (`src/lib/rateLimit.ts`, 8 attempts/15min
+per username) and the E2E suite are in real tension — nearly every spec file's first action is
+`loginAs(page, DEMO_USERS.ceo.username)`, and running all 8 spec files back to back exhausts the
+CEO account's rate-limit budget partway through, cascading into unrelated-looking failures for
+every test after that point (stuck on `/login`). Individual spec files, or a few run together, are
+fine — it's only the full suite in one go that trips it. No fix applied yet; options for later:
+exempt seeded demo accounts from rate limiting, add a test/CI bypass (Upstash keys can be flushed
+by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
+
+**Known pre-existing gaps surfaced by this being staging's first full E2E run (not caused by
+2026-08-10's changes, not yet fixed):**
+- `e2e/auth.spec.ts`'s sign-out test intermittently fails locally — Next's dev-mode overlay
+  widget (`<nextjs-portal>`) can intercept the "Sign out" button's click, a dev-server rendering
+  artifact rather than an app bug.
+- `e2e/user-management.spec.ts`'s self-lockout test expects a demo CEO account named "CEOAdmin"
+  that `scripts/seed-demo.ts` does not create — a pre-existing mismatch between that one test and
+  the seed script, invisible until staging (with only the seed script's data, no manually-added
+  extra accounts) actually ran this suite for the first time.
 
 ### Database Migrations
 - `prisma/migrations/20260807051647_init/` — full initial schema
@@ -551,6 +620,10 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 8. Revisit Vercel/Supabase tier as usage grows past pilot scale — more roles and a placement pipeline mean more concurrent sessions and writes
 9. ~~Wire up CI (lint/build on every push)~~ — done 2026-08-10 via GitHub Actions (`.github/workflows/ci.yml`), verified green (run #1, 1m22s). The original attempt was GitLab CI, but that project's only registered runner had a 2-year-stale heartbeat and no live process anywhere — rather than standing up runner infrastructure, the project moved to GitHub entirely (see Repository above), which doubled as the fix. E2E-in-CI is a further follow-on, needing staging DB + Upstash credentials added as GitHub Actions secrets.
 10. ~~Error monitoring (e.g. Sentry)~~ — done 2026-08-10, `@sentry/nextjs` (see Tech Stack)
+11. ~~Unit tests for the RBAC matrix~~ — done 2026-08-10, expanded to unit-test coverage across most of `src/lib/` and E2E specs for the 4 offshore/placement roles (see "Testing")
+12. N+1 queries in `src/lib/reports.ts` (`getDashboardAggregates`/`getConsultantReportRows` call `getConsultantProgress` once per consultant, ~5 queries each — ~3,500 queries per page load at 700 users) — **designed but not yet implemented** as of 2026-08-10: a `getConsultantProgressBatch()` batching all N consultants into 5 total queries. Full design (exact query shapes, which call sites change vs. stay untouched) written up but not committed to code anywhere — whoever picks this up next needs to redesign or find the plan from the 2026-08-10 session.
+13. Fix the rate-limiter-vs-E2E-suite tension documented under "Testing" — the full E2E suite can't currently run start-to-finish without hitting the CEO account's login rate limit partway through
+14. `e2e/user-management.spec.ts`'s self-lockout test expects a "CEOAdmin" demo account that `scripts/seed-demo.ts` doesn't create (see "Testing") — either add that account to the seed script or change the test to use an account the script actually creates
 
 ---
 
@@ -558,6 +631,6 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 For questions about the codebase structure, architectural decisions, or development workflow, refer to comments in key files (`src/lib/auth/rbac.ts`, `prisma/schema.prisma`, etc.) and `docs/Getting-Started.md`.
 
-**Last Updated:** 2026-08-10 — enterprise-scale hardening pass: added indexes on the offshore/placement `User` fields, wrapped the marketing-readiness status flip in a transaction, added security headers and top-level error boundaries, added login rate limiting (Upstash Redis), added an edge-level early-auth `proxy.ts`, added CSRF protection to the report-export route, stood up a separate staging Supabase project so local dev no longer writes into the production database, added Sentry error monitoring, and fully migrated the repo from GitLab to a private GitHub repo (`origin`) — GitLab's pipeline never had a live runner; GitHub Actions does, verified green. The GitLab project was ultimately deleted outright by explicit user decision (not just abandoned). Restricted report-export access to CEO/Location Manager only (previously included Location Admin). See "Repository", "Staging vs. production", and the Sentry/rate-limiting/CSRF notes under Tech Stack, User Management, and Reporting & Exports for details.
+**Last Updated:** 2026-08-10 — enterprise-scale hardening pass: added indexes on the offshore/placement `User` fields, wrapped the marketing-readiness status flip in a transaction, added security headers and top-level error boundaries, added login rate limiting (Upstash Redis), added an edge-level early-auth `proxy.ts`, added CSRF protection to the report-export route, stood up a separate staging Supabase project so local dev no longer writes into the production database, added Sentry error monitoring, fully migrated the repo from GitLab to a private GitHub repo (`origin`, GitLab project deleted outright by explicit user decision), added a Vitest unit test suite (182 tests, mostly `src/lib/`, led by a full RBAC matrix suite), added 3 new E2E specs covering the 4 offshore/placement roles end to end including the dual Trainer+Otter sign-off pipeline, and fixed two bugs in the shared E2E login fixture found while writing those. Restricted report-export access to CEO/Location Manager only (previously included Location Admin). Designed (not yet implemented) a fix for the N+1 query pattern in `reports.ts`. See "Repository", "Staging vs. production", "Testing", and the Sentry/rate-limiting/CSRF notes under Tech Stack, User Management, and Reporting & Exports for details.
 **Previously (2026-08-09):** added the Offshore Manager / Offshore Team Lead / Trainer / Otter Team roles and the full post-training placement pipeline (dual Trainer+Otter sign-off, marketing-readiness rollup, Calendly link-out scheduling, Location Overview dashboard); documented the Consultant `technology`/`visaType`/`dateOfBirth`/`offshoreOffice` fields that were added earlier the same day but missed in the previous pass; fixed and documented two bugs found during a full 9-role permission audit (dashboard Coordinator-filter leak, `/users/management` dead-end for the new roles).
 **Generated by:** Cowork Claude Documentation Generator

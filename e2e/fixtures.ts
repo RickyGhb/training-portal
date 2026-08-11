@@ -29,11 +29,22 @@ export const DEMO_USERS = {
 };
 
 export async function loginAs(page: Page, username: string, password = DEMO_PASSWORD) {
+  // /login redirects an already-authenticated visitor straight to /dashboard
+  // (see src/app/login/page.tsx), so switching identity within a single test
+  // (e.g. CEO -> a role it just created) would otherwise hang waiting for a
+  // login form that never renders. Clearing cookies first is a no-op for the
+  // common single-login-per-test case and makes loginAs safe to call more
+  // than once against the same page.
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  // Not always /dashboard: OFFSHORE_MANAGER/OFFSHORE_TEAM_LEAD/TRAINER/OTTER_TEAM
+  // get redirected further, straight past /dashboard to their own landing page
+  // (see the redirect map in src/app/(app)/dashboard/page.tsx). The only thing
+  // every successful login has in common is leaving /login.
+  await expect(page).not.toHaveURL(/\/login/);
 }
 
 /** A unique, clearly-disposable username for a single test run. Never reused across tests. */

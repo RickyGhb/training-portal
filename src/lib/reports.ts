@@ -11,7 +11,7 @@ import { getConsultantProgress } from "@/lib/content-resolution";
  * to their own location; Coordinator to their own consultants.
  */
 
-function consultantScopeFilter(actor: SessionUser) {
+export function consultantScopeFilter(actor: SessionUser) {
   switch (actor.role) {
     case "CEO":
       return {};

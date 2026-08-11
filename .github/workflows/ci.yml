@@ -13,7 +13,9 @@ jobs:
       # Placeholders, not real credentials: the build never queries the DB
       # (every route is server-rendered on demand, not statically generated
       # against live data), so prisma generate/next build only need these
-      # vars present, not reachable. Same approach as .gitlab-ci.yml.
+      # vars present, not reachable. Unit tests (vitest) also default to this
+      # value locally via vitest.config.mts for the same reason - the ones
+      # that touch prisma-shaped code mock it, they never connect for real.
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
       DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
     steps:
@@ -24,4 +26,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run test:unit
       - run: npm run build

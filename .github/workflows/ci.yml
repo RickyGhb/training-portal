@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint_and_build:
+    runs-on: ubuntu-latest
+    env:
+      # Placeholders, not real credentials: the build never queries the DB
+      # (every route is server-rendered on demand, not statically generated
+      # against live data), so prisma generate/next build only need these
+      # vars present, not reachable. Same approach as .gitlab-ci.yml.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

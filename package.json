@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "db:studio:prod": "node scripts/studio.mjs .env",
+    "db:studio:staging": "node scripts/studio.mjs .env.local",
     "seed:ceo": "node --env-file=.env.local -r tsx/cjs scripts/seed-ceo.ts",
     "seed:demo": "node --env-file=.env.local -r tsx/cjs scripts/seed-demo.ts",
     "test:e2e": "playwright test",

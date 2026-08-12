@@ -31,9 +31,18 @@ import * as Sentry from "@sentry/nextjs";
 
 export type FormState = { error?: string; success?: string };
 
+/**
+ * Every mutating server action's entry point. Redirects to /login (rather
+ * than throwing) when the session is missing/expired/revoked — a plain
+ * throw here would be uncaught (this runs before any action's own
+ * try/catch) and crash to the generic error.tsx boundary instead of
+ * sending the user back to sign in, which is what actually happens when a
+ * page is left open past the session TTL or another admin resets the
+ * user's password mid-session.
+ */
 export async function requireActor(): Promise<SessionUser> {
   const actor = await getCurrentUser();
-  if (!actor) throw new Error("Not authenticated");
+  if (!actor) redirect("/login");
   return actor;
 }
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canManageVideos } from "@/lib/auth/rbac";
@@ -116,7 +117,7 @@ export async function setVideoStatusAction(formData: FormData): Promise<void> {
   revalidatePath("/catalog/videos");
 }
 
-export async function deleteVideoAction(formData: FormData): Promise<void> {
+export async function deleteVideoAction(formData: FormData): Promise<{ error?: string } | void> {
   const actor = await requireVideoManager();
   if (!actor) return;
 
@@ -124,7 +125,21 @@ export async function deleteVideoAction(formData: FormData): Promise<void> {
   const video = await prisma.video.findUnique({ where: { id } });
   if (!video) return;
 
-  await prisma.video.delete({ where: { id } });
+  try {
+    await prisma.video.delete({ where: { id } });
+  } catch (error) {
+    // P2003 = foreign key constraint failed. AuditLog.videoId and
+    // VideoCompletion.videoId (consultant progress records) are Restrict (no
+    // cascade) — a video that's ever been watched/completed, or referenced by
+    // an audit log row, can't be hard-deleted. Archiving is the only way to
+    // retire a video in practice.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return {
+        error: `"${video.title}" can't be deleted — it's still referenced by completion or audit history. Archive it instead to remove it from active selection lists.`,
+      };
+    }
+    throw error;
+  }
 
   await logAudit({
     actorUserId: actor.id,

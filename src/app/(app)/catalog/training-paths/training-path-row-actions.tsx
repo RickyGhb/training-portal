@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormModalButton } from "@/components/ui/FormModalButton";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { TECHNOLOGY_OPTIONS } from "@/lib/technologyOptions";
 import {
   updateTrainingPathAction,
   setTrainingPathStatusAction,
@@ -13,6 +14,7 @@ export function TrainingPathRowActions({
   id,
   name,
   description,
+  technology,
   status,
   courseCount,
   assignmentCount,
@@ -20,6 +22,7 @@ export function TrainingPathRowActions({
   id: string;
   name: string;
   description: string | null;
+  technology: string | null;
   status: "ACTIVE" | "ARCHIVED";
   courseCount: number;
   assignmentCount: number;
@@ -52,6 +55,24 @@ export function TrainingPathRowActions({
             defaultValue={description ?? ""}
             className="w-full field"
           />
+        </div>
+        <div>
+          <label htmlFor={`training-path-technology-${id}`} className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Technology
+          </label>
+          <select
+            id={`training-path-technology-${id}`}
+            name="technology"
+            defaultValue={technology ?? ""}
+            className="w-full field"
+          >
+            <option value="">— General (no technology) —</option>
+            {TECHNOLOGY_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.value}
+              </option>
+            ))}
+          </select>
         </div>
       </FormModalButton>
 

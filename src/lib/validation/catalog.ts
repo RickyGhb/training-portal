@@ -3,9 +3,12 @@ import { nameSchema, optionalTrimmedString } from "@/lib/validation/user";
 
 export const descriptionSchema = optionalTrimmedString(z.string().trim().max(2000));
 
+export const technologySchema = optionalTrimmedString(z.string().trim().max(100));
+
 export const trainingPathSchema = z.object({
   name: nameSchema,
   description: descriptionSchema,
+  technology: technologySchema,
 });
 
 export const courseSchema = z.object({

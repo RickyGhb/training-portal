@@ -29,7 +29,7 @@ import { logAudit, notifyCeos, notifyUser } from "@/lib/audit";
 import { UserFacingError } from "@/lib/errors";
 import * as Sentry from "@sentry/nextjs";
 
-export type FormState = { error?: string; success?: string };
+export type FormState = { error?: string; success?: string; createdUserId?: string };
 
 /**
  * Every mutating server action's entry point. Redirects to /login (rather
@@ -284,7 +284,7 @@ export async function createConsultantAction(_prevState: FormState, formData: Fo
     });
 
     revalidatePath("/users/consultants");
-    return { success: `${firstName} ${lastName} created.` };
+    return { success: `${firstName} ${lastName} created.`, createdUserId: user.id };
   } catch (err) {
     return toFormError(err);
   }

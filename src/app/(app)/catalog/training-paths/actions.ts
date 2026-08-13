@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canManageCatalogStructure } from "@/lib/auth/rbac";
@@ -21,11 +22,17 @@ export async function createTrainingPathAction(_prevState: FormState, formData: 
   const parsed = trainingPathSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
+    technology: formData.get("technology"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
   const path = await prisma.trainingPath.create({
-    data: { name: parsed.data.name, description: parsed.data.description, createdByUserId: actor.id },
+    data: {
+      name: parsed.data.name,
+      description: parsed.data.description,
+      technology: parsed.data.technology,
+      createdByUserId: actor.id,
+    },
   });
 
   await logAudit({
@@ -48,12 +55,13 @@ export async function updateTrainingPathAction(_prevState: FormState, formData: 
   const parsed = trainingPathSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
+    technology: formData.get("technology"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
   const path = await prisma.trainingPath.update({
     where: { id },
-    data: { name: parsed.data.name, description: parsed.data.description },
+    data: { name: parsed.data.name, description: parsed.data.description, technology: parsed.data.technology },
   });
 
   await logAudit({
@@ -91,7 +99,7 @@ export async function setTrainingPathStatusAction(formData: FormData): Promise<v
   revalidatePath(`/catalog/training-paths/${id}`);
 }
 
-export async function deleteTrainingPathAction(formData: FormData): Promise<void> {
+export async function deleteTrainingPathAction(formData: FormData): Promise<{ error?: string } | void> {
   const actor = await requireCeo();
   if (!actor) return;
 
@@ -99,7 +107,21 @@ export async function deleteTrainingPathAction(formData: FormData): Promise<void
   const path = await prisma.trainingPath.findUnique({ where: { id } });
   if (!path) return;
 
-  await prisma.trainingPath.delete({ where: { id } });
+  try {
+    await prisma.trainingPath.delete({ where: { id } });
+  } catch (error) {
+    // P2003 = foreign key constraint failed. AuditLog.trainingPathId and
+    // ConsultantTrainingAssignment.trainingPathId are both Restrict (no
+    // cascade) — a path that's ever been assigned to a consultant, or even
+    // just created/edited (which always writes an AuditLog row), can't be
+    // hard-deleted. Archiving is the only way to retire a path in practice.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return {
+        error: `"${path.name}" can't be deleted — it's still referenced by assignment or audit history. Archive it instead to remove it from active selection lists.`,
+      };
+    }
+    throw error;
+  }
 
   await logAudit({
     actorUserId: actor.id,

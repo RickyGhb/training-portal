@@ -7,11 +7,24 @@ export function AssignPathButton({
   consultantUserId,
   currentPathName,
   paths,
+  consultantTechnology,
 }: {
   consultantUserId: string;
   currentPathName: string | null;
-  paths: { id: string; name: string }[];
+  paths: { id: string; name: string; technology: string | null }[];
+  consultantTechnology: string | null;
 }) {
+  const recommended = consultantTechnology
+    ? paths.filter((p) => p.technology === consultantTechnology)
+    : [];
+  const other = consultantTechnology ? paths.filter((p) => p.technology !== consultantTechnology) : paths;
+
+  const renderOption = (p: { id: string; name: string }) => (
+    <option key={p.id} value={p.id}>
+      {p.name}
+    </option>
+  );
+
   return (
     <FormModalButton
       action={assignTrainingPathAction}
@@ -31,11 +44,14 @@ export function AssignPathButton({
         </label>
         <select id="assign-training-path" name="trainingPathId" required className="w-full field">
           <option value="">Select...</option>
-          {paths.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          {recommended.length > 0 ? (
+            <>
+              <optgroup label={`Recommended for ${consultantTechnology}`}>{recommended.map(renderOption)}</optgroup>
+              <optgroup label="Other Training Paths">{other.map(renderOption)}</optgroup>
+            </>
+          ) : (
+            other.map(renderOption)
+          )}
         </select>
       </div>
     </FormModalButton>

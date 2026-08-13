@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 
 type ConfirmButtonProps = {
-  action: (formData: FormData) => Promise<void> | void;
+  action: (formData: FormData) => Promise<{ error?: string } | void> | void;
   hiddenFields?: Record<string, string>;
   confirmTitle: string;
   confirmMessage: string;
@@ -29,6 +29,7 @@ export function ConfirmButton({
   className,
 }: ConfirmButtonProps) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | undefined>();
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -38,7 +39,10 @@ export function ConfirmButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setError(undefined);
+          setOpen(true);
+        }}
         className={className ?? buttonClasses}
       >
         {label}
@@ -55,8 +59,13 @@ export function ConfirmButton({
               ref={formRef}
               action={(formData) => {
                 startTransition(async () => {
-                  await action(formData);
-                  setOpen(false);
+                  const result = await action(formData);
+                  if (result?.error) {
+                    setError(result.error);
+                  } else {
+                    setError(undefined);
+                    setOpen(false);
+                  }
                 });
               }}
             >
@@ -64,6 +73,7 @@ export function ConfirmButton({
                 Object.entries(hiddenFields).map(([key, value]) => (
                   <input key={key} type="hidden" name={key} value={value} />
                 ))}
+              {error && <p className="mt-3 text-sm text-[var(--color-danger)]">{error}</p>}
               <div className="mt-5 flex justify-end gap-2">
                 <button type="button" onClick={() => setOpen(false)} disabled={pending} className="btn-secondary">
                   Cancel

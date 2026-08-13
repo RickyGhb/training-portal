@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { Role } from "@/generated/prisma/client";
 import { createStaffUserAction, createConsultantAction } from "@/app/(app)/users/actions";
@@ -372,7 +373,19 @@ function CreateUserFields({
           {pending ? "Creating..." : "Create account"}
         </button>
         {state.error && <p className="text-sm text-[var(--color-danger)]">{state.error}</p>}
-        {state.success && <p className="text-sm text-green-700">{state.success}</p>}
+        {state.success && (
+          <p className="text-sm text-green-700">
+            {state.success}
+            {isConsultant && state.createdUserId && (
+              <>
+                {" "}
+                <Link href={`/users/consultants/${state.createdUserId}`} className="font-medium underline">
+                  Assign training path →
+                </Link>
+              </>
+            )}
+          </p>
+        )}
       </div>
       {isConsultant && (
         <p className="mt-2 text-xs text-[var(--color-ink-soft)]">

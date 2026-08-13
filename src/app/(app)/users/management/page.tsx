@@ -246,13 +246,20 @@ export default async function UserManagementPage({
                       </>
                     )}
                     <td className="px-4 py-2">
-                      <UserRowActions
-                        userId={u.id}
-                        username={u.username}
-                        fullName={`${u.firstName} ${u.lastName}`}
-                        status={u.status}
-                        isSelf={u.id === actor.id}
-                      />
+                      <div className="flex items-center justify-end gap-3">
+                        {u.role === "CONSULTANT" && u.status !== "DELETED" && (
+                          <Link href={`/users/consultants/${u.id}`} className="link-action">
+                            Training &amp; progress
+                          </Link>
+                        )}
+                        <UserRowActions
+                          userId={u.id}
+                          username={u.username}
+                          fullName={`${u.firstName} ${u.lastName}`}
+                          status={u.status}
+                          isSelf={u.id === actor.id}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );

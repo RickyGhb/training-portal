@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createTrainingPathAction } from "./actions";
+import { TECHNOLOGY_OPTIONS } from "@/lib/technologyOptions";
 
 export function TrainingPathForm() {
   const [state, formAction, pending] = useActionState(createTrainingPathAction, {});
@@ -30,6 +31,19 @@ export function TrainingPathForm() {
           className="w-full field"
           placeholder="Optional"
         />
+      </div>
+      <div>
+        <label htmlFor="training-path-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+          Technology
+        </label>
+        <select id="training-path-technology" name="technology" defaultValue="" className="w-56 field">
+          <option value="">— General (no technology) —</option>
+          {TECHNOLOGY_OPTIONS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.value}
+            </option>
+          ))}
+        </select>
       </div>
       <button
         type="submit"

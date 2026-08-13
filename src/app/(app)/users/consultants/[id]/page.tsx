@@ -36,6 +36,16 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
     prisma.user.findMany({ where: { role: "OTTER_TEAM", status: "ACTIVE", deletedAt: null }, orderBy: { firstName: "asc" } }),
   ]);
 
+  // Technology-matching paths first (still alphabetical within each group, since
+  // the source query is already ordered by name and Array.sort is stable) — a
+  // soft sort, not a filter, so every path stays pickable regardless of match.
+  const sortedTrainingPaths = [...trainingPaths].sort((a, b) => {
+    const aMatches = target.technology != null && a.technology === target.technology;
+    const bMatches = target.technology != null && b.technology === target.technology;
+    if (aMatches === bMatches) return 0;
+    return aMatches ? -1 : 1;
+  });
+
   const resolvedCourseIds = new Set(resolvedCourses.map((c) => c.id));
   const extraCourses = resolvedCourses.filter((c) => c.source === "extra" || c.source === "both");
   const availableForExtra = await prisma.course.findMany({
@@ -131,7 +141,8 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
         <AssignPathButton
           consultantUserId={target.id}
           currentPathName={assignment?.trainingPath.name ?? null}
-          paths={trainingPaths}
+          paths={sortedTrainingPaths}
+          consultantTechnology={target.technology}
         />
       </div>
       <p className="mt-2 text-sm text-[var(--color-ink)]">

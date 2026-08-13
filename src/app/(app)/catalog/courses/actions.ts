@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canManageCatalogStructure } from "@/lib/auth/rbac";
@@ -91,7 +92,7 @@ export async function setCourseStatusAction(formData: FormData): Promise<void> {
   revalidatePath(`/catalog/courses/${id}`);
 }
 
-export async function deleteCourseAction(formData: FormData): Promise<void> {
+export async function deleteCourseAction(formData: FormData): Promise<{ error?: string } | void> {
   const actor = await requireCeo();
   if (!actor) return;
 
@@ -99,7 +100,21 @@ export async function deleteCourseAction(formData: FormData): Promise<void> {
   const course = await prisma.course.findUnique({ where: { id } });
   if (!course) return;
 
-  await prisma.course.delete({ where: { id } });
+  try {
+    await prisma.course.delete({ where: { id } });
+  } catch (error) {
+    // P2003 = foreign key constraint failed. AuditLog.courseId and
+    // ConsultantExtraCourse.courseId (extra-course assignments) are Restrict
+    // (no cascade) — a course that's ever been assigned or referenced by an
+    // audit log row can't be hard-deleted. Archiving is the only way to retire
+    // a course in practice.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return {
+        error: `"${course.name}" can't be deleted — it's still referenced by assignment or audit history. Archive it instead to remove it from active selection lists.`,
+      };
+    }
+    throw error;
+  }
 
   await logAudit({
     actorUserId: actor.id,

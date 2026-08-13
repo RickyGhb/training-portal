@@ -34,6 +34,7 @@ export default async function TrainingPathsPage() {
           <tr>
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Description</th>
+            <th className="px-4 py-2">Technology</th>
             <th className="px-4 py-2">Status</th>
             <th className="px-4 py-2"></th>
           </tr>
@@ -43,6 +44,7 @@ export default async function TrainingPathsPage() {
             <tr key={path.id}>
               <td className="px-4 py-2 font-medium text-[var(--color-ink)]">{path.name}</td>
               <td className="px-4 py-2 max-w-sm truncate text-[var(--color-ink-soft)]">{path.description}</td>
+              <td className="px-4 py-2 text-[var(--color-ink-soft)]">{path.technology ?? "—"}</td>
               <td className="px-4 py-2">
                 <StatusBadge status={path.status} />
               </td>
@@ -51,6 +53,7 @@ export default async function TrainingPathsPage() {
                   id={path.id}
                   name={path.name}
                   description={path.description}
+                  technology={path.technology}
                   status={path.status}
                   courseCount={path._count.courses}
                   assignmentCount={path._count.assignments}
@@ -60,7 +63,7 @@ export default async function TrainingPathsPage() {
           ))}
           {paths.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
+              <td colSpan={5} className="px-4 py-6 text-center text-[var(--color-ink-faint)]">
                 No training paths yet.
               </td>
             </tr>

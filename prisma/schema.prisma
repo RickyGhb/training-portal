@@ -230,6 +230,7 @@ model TrainingPath {
   id              String        @id @default(cuid())
   name            String
   description     String?
+  technology      String?
   status          ContentStatus @default(ACTIVE)
   createdByUserId String?
   createdBy       User?         @relation("TrainingPathCreatedBy", fields: [createdByUserId], references: [id])
@@ -241,6 +242,7 @@ model TrainingPath {
   auditLogs   AuditLog[]
 
   @@index([status])
+  @@index([technology])
 }
 
 model Course {

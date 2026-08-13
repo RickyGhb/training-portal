@@ -121,7 +121,12 @@ export default async function UserManagementPage({
       orderBy: [{ role: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { location: true, coordinator: true, locationManager: true, manager: true },
+      include: {
+        location: { select: { name: true } },
+        coordinator: { select: { firstName: true, lastName: true } },
+        locationManager: { select: { firstName: true, lastName: true } },
+        manager: { select: { firstName: true, lastName: true } },
+      },
     }),
   ]);
 

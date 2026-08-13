@@ -20,13 +20,21 @@ export async function suggestConsultantUsernameAction(firstName: string, techAbb
   const abbrev = techAbbrev.trim();
   if (!first || !abbrev) return "";
 
-  const consultantsSoFar = await prisma.user.count({ where: { role: "CONSULTANT" } });
-  let n = 120 + consultantsSoFar;
-  let candidate = `${first}.${abbrev}${n}`;
+  const prefix = `${first}.${abbrev}`;
+  const [consultantsSoFar, existing] = await Promise.all([
+    prisma.user.count({ where: { role: "CONSULTANT" } }),
+    prisma.user.findMany({
+      where: { usernameLower: { startsWith: prefix.toLowerCase() } },
+      select: { usernameLower: true },
+    }),
+  ]);
+  const taken = new Set(existing.map((u) => u.usernameLower));
 
-  while (await prisma.user.findUnique({ where: { usernameLower: candidate.toLowerCase() } })) {
+  let n = 120 + consultantsSoFar;
+  let candidate = `${prefix}${n}`;
+  while (taken.has(candidate.toLowerCase())) {
     n++;
-    candidate = `${first}.${abbrev}${n}`;
+    candidate = `${prefix}${n}`;
   }
 
   return candidate;

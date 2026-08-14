@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { Role } from "@/generated/prisma/client";
 import { createStaffUserAction, createConsultantAction } from "@/app/(app)/users/actions";
-import { suggestConsultantUsernameAction } from "@/app/(app)/users/username-suggestion";
+import { suggestConsultantUsernameAction, suggestStaffUsernameAction } from "@/app/(app)/users/username-suggestion";
 import { locationAssignmentModeFor, offshoreOfficeAssignmentModeFor } from "@/lib/auth/rbac";
 import { ROLE_LABELS } from "@/lib/roleLabels";
 import { OFFSHORE_OFFICE_LABELS } from "@/lib/offshoreOfficeLabels";
@@ -96,6 +96,7 @@ function CreateUserFields({
   const isTrainer = role === "TRAINER";
 
   const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [techValue, setTechValue] = useState("");
   const [techOther, setTechOther] = useState("");
   const [username, setUsername] = useState("");
@@ -104,19 +105,32 @@ function CreateUserFields({
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (!isConsultant) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const abbrev =
-      techValue === OTHER_TECHNOLOGY_VALUE
-        ? deriveOtherAbbrev(techOther)
-        : (TECHNOLOGY_OPTIONS.find((t) => t.value === techValue)?.usernameAbbrev ?? "");
-
-    if (!firstName.trim() || !abbrev) return;
+    if (!firstName.trim()) return;
 
     const thisRequestId = ++requestIdRef.current;
+    const fetchSuggestion = (): Promise<string> | null => {
+      if (isConsultant) {
+        const abbrev =
+          techValue === OTHER_TECHNOLOGY_VALUE
+            ? deriveOtherAbbrev(techOther)
+            : (TECHNOLOGY_OPTIONS.find((t) => t.value === techValue)?.usernameAbbrev ?? "");
+        if (!abbrev) return null;
+        return suggestConsultantUsernameAction(firstName, abbrev);
+      }
+      if (isTrainer) {
+        const abbrev = TECHNOLOGY_OPTIONS.find((t) => t.value === techValue)?.usernameAbbrev ?? "";
+        if (!abbrev) return null;
+        return suggestStaffUsernameAction(role, firstName, lastName, abbrev);
+      }
+      if (!lastName.trim()) return null;
+      return suggestStaffUsernameAction(role, firstName, lastName);
+    };
+
     debounceRef.current = setTimeout(() => {
-      suggestConsultantUsernameAction(firstName, abbrev).then((suggested) => {
+      const suggestion = fetchSuggestion();
+      if (!suggestion) return;
+      suggestion.then((suggested) => {
         if (requestIdRef.current !== thisRequestId) return; // stale response
         if (!suggested || usernameTouched) return;
         setUsername(suggested);
@@ -127,7 +141,7 @@ function CreateUserFields({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConsultant, firstName, techValue, techOther]);
+  }, [role, isConsultant, isTrainer, firstName, lastName, techValue, techOther]);
 
   const usernameField = (
     <div>
@@ -164,7 +178,19 @@ function CreateUserFields({
             className="w-full field"
           />
         </div>
-        <Field label="Last name" name="lastName" required />
+        <div>
+          <label htmlFor="field-lastName" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
+            Last name
+          </label>
+          <input
+            id="field-lastName"
+            name="lastName"
+            required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="w-full field"
+          />
+        </div>
         {isConsultant ? (
           <div>
             <label htmlFor="field-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
@@ -353,7 +379,14 @@ function CreateUserFields({
                 <label htmlFor="field-technology" className="mb-1 block text-xs font-medium text-[var(--color-ink)]">
                   Technology
                 </label>
-                <select id="field-technology" name="technology" required className="w-full field" defaultValue="">
+                <select
+                  id="field-technology"
+                  name="technology"
+                  required
+                  className="w-full field"
+                  value={techValue}
+                  onChange={(e) => setTechValue(e.target.value)}
+                >
                   <option value="" disabled>
                     Select a technology
                   </option>

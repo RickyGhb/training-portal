@@ -37,12 +37,16 @@ export function PublicForm({ slug, fields }: { slug: string; fields: Field[] }) 
   async function handleFileChange(field: Field, fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const maxFiles = field.maxFiles ?? 1;
-    const maxSizeBytes = (field.maxFileSizeMb ?? 10) * 1024 * 1024;
+    // Hard cap at 10MB regardless of per-field config — matches the server-side
+    // limit enforced in the upload-token route, so a request never gets past
+    // the client only to be rejected mid-upload.
+    const maxSizeMb = Math.min(field.maxFileSizeMb ?? 10, 10);
+    const maxSizeBytes = maxSizeMb * 1024 * 1024;
     const selected = Array.from(fileList).slice(0, maxFiles);
 
     const oversized = selected.find((f) => f.size > maxSizeBytes);
     if (oversized) {
-      setUploadErrors((prev) => ({ ...prev, [field.id]: `Each file must be under ${field.maxFileSizeMb ?? 10}MB.` }));
+      setUploadErrors((prev) => ({ ...prev, [field.id]: `Each file must be under ${maxSizeMb}MB.` }));
       return;
     }
 
@@ -143,12 +147,13 @@ export function PublicForm({ slug, fields }: { slug: string; fields: Field[] }) 
                 id={`field-${field.id}`}
                 type="file"
                 multiple={(field.maxFiles ?? 1) > 1}
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,.doc,.docx"
                 onChange={(e) => handleFileChange(field, e.target.files)}
                 className="w-full text-sm"
               />
               <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
-                Up to {field.maxFiles ?? 1} file{(field.maxFiles ?? 1) > 1 ? "s" : ""}, {field.maxFileSizeMb ?? 10}MB each.
+                Up to {field.maxFiles ?? 1} file{(field.maxFiles ?? 1) > 1 ? "s" : ""}, {Math.min(field.maxFileSizeMb ?? 10, 10)}MB each (PDF,
+                Word, or image).
               </p>
               {uploading[field.id] && <p className="mt-1 text-xs text-[var(--color-ink-soft)]">Uploading…</p>}
               {uploadErrors[field.id] && <p className="mt-1 text-xs text-[var(--color-danger)]">{uploadErrors[field.id]}</p>}

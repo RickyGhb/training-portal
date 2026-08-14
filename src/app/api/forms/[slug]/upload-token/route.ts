@@ -37,8 +37,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
           throw new Error("Invalid upload destination.");
         }
         return {
-          allowedContentTypes: ["image/jpeg", "image/png", "image/heic", "image/webp", "application/pdf"],
-          maximumSizeInBytes: 15 * 1024 * 1024,
+          allowedContentTypes: [
+            "image/jpeg",
+            "image/png",
+            "image/heic",
+            "image/webp",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ],
+          maximumSizeInBytes: 10 * 1024 * 1024,
           addRandomSuffix: true,
         };
       },

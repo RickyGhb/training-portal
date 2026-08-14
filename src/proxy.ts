@@ -34,7 +34,10 @@ export function proxy(request: NextRequest) {
   const csp = buildCsp(nonce, process.env.NODE_ENV === "production");
 
   const { pathname } = request.nextUrl;
-  const isPublicPath = pathname === "/login" || pathname.startsWith("/api/");
+  // /f/* is the public form-fill surface (see src/app/f/[slug]) — deliberately
+  // a distinct prefix from the internal /forms builder/submissions pages, so
+  // this carve-out can never accidentally expose those.
+  const isPublicPath = pathname === "/login" || pathname.startsWith("/api/") || pathname.startsWith("/f/");
 
   if (!isPublicPath) {
     const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);

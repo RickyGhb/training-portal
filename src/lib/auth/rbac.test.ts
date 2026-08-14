@@ -21,7 +21,14 @@ import {
   offshoreOfficeAssignmentModeFor,
   isCeo,
   userVisibilityFilter,
+  canCreateForm,
+  canViewFormsByCreator,
+  canGrantFormAccess,
+  canViewForm,
+  canViewSubmission,
+  formsListWhereClause,
   type ScopeSubject,
+  type FormCreatorSubject,
 } from "@/lib/auth/rbac";
 
 const ALL_ROLES: Role[] = [
@@ -381,6 +388,217 @@ describe("userVisibilityFilter", () => {
     "%s falls through to the default (sees nobody via this filter)",
     (role) => {
       expect(userVisibilityFilter(user(role))).toEqual({ id: "__none__" });
+    }
+  );
+});
+
+function creator(role: Role, overrides: Partial<FormCreatorSubject> = {}): FormCreatorSubject {
+  return { role, locationId: null, offshoreOffice: null, ...overrides };
+}
+
+describe("canCreateForm", () => {
+  it.each<Role>([
+    "CEO",
+    "LOCATION_MANAGER",
+    "LOCATION_ADMIN",
+    "COORDINATOR",
+    "OFFSHORE_MANAGER",
+    "OFFSHORE_TEAM_LEAD",
+    "TRAINER",
+    "OTTER_TEAM",
+  ])("%s can create forms", (role) => {
+    expect(canCreateForm(role)).toBe(true);
+  });
+
+  it("CONSULTANT cannot create forms", () => {
+    expect(canCreateForm("CONSULTANT")).toBe(false);
+  });
+});
+
+describe("canViewFormsByCreator (Mechanism A — creator hierarchy)", () => {
+  it("CEO sees forms from any creator", () => {
+    expect(canViewFormsByCreator(user("CEO"), creator("COORDINATOR", { locationId: "loc-a" }))).toBe(true);
+  });
+
+  it("LOCATION_MANAGER sees forms from LOCATION_ADMIN and COORDINATOR in their own location", () => {
+    const actor = user("LOCATION_MANAGER", { locationId: "loc-a" });
+    expect(canViewFormsByCreator(actor, creator("LOCATION_ADMIN", { locationId: "loc-a" }))).toBe(true);
+    expect(canViewFormsByCreator(actor, creator("COORDINATOR", { locationId: "loc-a" }))).toBe(true);
+  });
+
+  it("LOCATION_MANAGER does not see forms from a different location", () => {
+    const actor = user("LOCATION_MANAGER", { locationId: "loc-a" });
+    expect(canViewFormsByCreator(actor, creator("COORDINATOR", { locationId: "loc-b" }))).toBe(false);
+  });
+
+  it("LOCATION_MANAGER does not see forms from peer/superior roles", () => {
+    const actor = user("LOCATION_MANAGER", { locationId: "loc-a" });
+    expect(canViewFormsByCreator(actor, creator("LOCATION_MANAGER", { locationId: "loc-a" }))).toBe(false);
+    expect(canViewFormsByCreator(actor, creator("CEO", { locationId: null }))).toBe(false);
+  });
+
+  it("LOCATION_ADMIN sees only COORDINATOR forms in their own location", () => {
+    const actor = user("LOCATION_ADMIN", { locationId: "loc-a" });
+    expect(canViewFormsByCreator(actor, creator("COORDINATOR", { locationId: "loc-a" }))).toBe(true);
+    expect(canViewFormsByCreator(actor, creator("COORDINATOR", { locationId: "loc-b" }))).toBe(false);
+    expect(canViewFormsByCreator(actor, creator("LOCATION_ADMIN", { locationId: "loc-a" }))).toBe(false);
+  });
+
+  it("COORDINATOR has no subordinates who can create forms", () => {
+    const actor = user("COORDINATOR", { locationId: "loc-a" });
+    expect(canViewFormsByCreator(actor, creator("CONSULTANT", { locationId: "loc-a" }))).toBe(false);
+  });
+
+  it("OFFSHORE_MANAGER sees OFFSHORE_TEAM_LEAD forms in their own office", () => {
+    const actor = user("OFFSHORE_MANAGER", { offshoreOffice: "LOCATION_1" });
+    expect(canViewFormsByCreator(actor, creator("OFFSHORE_TEAM_LEAD", { offshoreOffice: "LOCATION_1" }))).toBe(true);
+    expect(canViewFormsByCreator(actor, creator("OFFSHORE_TEAM_LEAD", { offshoreOffice: "LOCATION_2" }))).toBe(false);
+  });
+
+  it.each<Role>(["OFFSHORE_TEAM_LEAD", "TRAINER", "OTTER_TEAM"])(
+    "%s has no hierarchy visibility into anyone else's forms",
+    (role) => {
+      expect(canViewFormsByCreator(user(role), creator("CONSULTANT"))).toBe(false);
+    }
+  );
+});
+
+describe("canGrantFormAccess (Mechanism C — who can grant)", () => {
+  it("CEO can always grant access", () => {
+    expect(canGrantFormAccess(user("CEO", { id: "ceo-1" }), { createdByUserId: "someone-else" })).toBe(true);
+  });
+
+  it("the form's own creator can grant access", () => {
+    expect(canGrantFormAccess(user("COORDINATOR", { id: "coord-1" }), { createdByUserId: "coord-1" })).toBe(true);
+  });
+
+  it("nobody else can grant access", () => {
+    expect(canGrantFormAccess(user("LOCATION_MANAGER", { id: "lm-1" }), { createdByUserId: "coord-1" })).toBe(false);
+  });
+});
+
+describe("canViewForm (own / CEO / hierarchy / explicit grant)", () => {
+  const form = { createdByUserId: "coord-1" };
+
+  it("the creator can always view their own form", () => {
+    const actor = user("COORDINATOR", { id: "coord-1" });
+    expect(canViewForm(actor, form, null, false)).toBe(true);
+  });
+
+  it("CEO can always view any form", () => {
+    expect(canViewForm(user("CEO"), form, creator("COORDINATOR"), false)).toBe(true);
+  });
+
+  it("hierarchy access is honored when creator info is provided", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-1", locationId: "loc-a" });
+    expect(canViewForm(actor, form, creator("COORDINATOR", { locationId: "loc-a" }), false)).toBe(true);
+  });
+
+  it("an explicit access grant works even with no hierarchy relationship", () => {
+    const actor = user("TRAINER", { id: "trainer-1" });
+    expect(canViewForm(actor, form, creator("COORDINATOR"), true)).toBe(true);
+  });
+
+  it("returns false with no ownership, no CEO, no hierarchy match, and no grant", () => {
+    const actor = user("TRAINER", { id: "trainer-1" });
+    expect(canViewForm(actor, form, creator("COORDINATOR"), false)).toBe(false);
+  });
+});
+
+describe("canViewSubmission (folds in Mechanism B — location-answer matching)", () => {
+  const form = { createdByUserId: "ceo-1" };
+  const ceoAsCreator = creator("CEO");
+
+  it("a location-scoped role sees a submission whose resolved location matches their own, even with no form access otherwise", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-dallas", locationId: "dallas" });
+    const submission = { locationId: "dallas" };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(true);
+  });
+
+  it("a location-scoped role does NOT see a submission from a different location", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-dallas", locationId: "dallas" });
+    const submission = { locationId: "austin" };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(false);
+  });
+
+  it("COORDINATOR also gets location-based visibility (deliberate deviation from their normal coordinatorId-only scope)", () => {
+    const actor = user("COORDINATOR", { id: "coord-dallas", locationId: "dallas" });
+    const submission = { locationId: "dallas" };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(true);
+  });
+
+  it("non-location-hierarchy roles get no benefit from Mechanism B even with a matching locationId coincidence", () => {
+    const actor = user("TRAINER", { id: "trainer-1", locationId: "dallas" });
+    const submission = { locationId: "dallas" };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(false);
+  });
+
+  it("a submission with no resolved location falls back to plain canViewForm rules", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-1", locationId: "dallas" });
+    const submission = { locationId: null };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(false);
+  });
+
+  it("full form access (e.g. CEO) sees every submission regardless of location", () => {
+    const actor = user("CEO");
+    const submission = { locationId: "austin" };
+    expect(canViewSubmission(actor, form, ceoAsCreator, false, submission)).toBe(true);
+  });
+});
+
+describe("formsListWhereClause", () => {
+  it("CEO gets no filter", () => {
+    expect(formsListWhereClause(user("CEO"))).toEqual({});
+  });
+
+  it("LOCATION_MANAGER sees own forms, granted forms, and their location's Location Admin/Coordinator forms", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-1", locationId: "loc-a" });
+    expect(formsListWhereClause(actor)).toEqual({
+      OR: [
+        { createdByUserId: "lm-1" },
+        { accessGrants: { some: { grantedToUserId: "lm-1" } } },
+        { createdBy: { role: "LOCATION_ADMIN", locationId: "loc-a" } },
+        { createdBy: { role: "COORDINATOR", locationId: "loc-a" } },
+      ],
+    });
+  });
+
+  it("LOCATION_MANAGER with no location falls back to own+granted only", () => {
+    const actor = user("LOCATION_MANAGER", { id: "lm-1", locationId: null });
+    expect(formsListWhereClause(actor)).toEqual({
+      OR: [{ createdByUserId: "lm-1" }, { accessGrants: { some: { grantedToUserId: "lm-1" } } }],
+    });
+  });
+
+  it("LOCATION_ADMIN sees own+granted plus their location's Coordinator forms only", () => {
+    const actor = user("LOCATION_ADMIN", { id: "la-1", locationId: "loc-a" });
+    expect(formsListWhereClause(actor)).toEqual({
+      OR: [
+        { createdByUserId: "la-1" },
+        { accessGrants: { some: { grantedToUserId: "la-1" } } },
+        { createdBy: { role: "COORDINATOR", locationId: "loc-a" } },
+      ],
+    });
+  });
+
+  it("OFFSHORE_MANAGER sees own+granted plus their office's Offshore Team Lead forms", () => {
+    const actor = user("OFFSHORE_MANAGER", { id: "om-1", offshoreOffice: "LOCATION_1" });
+    expect(formsListWhereClause(actor)).toEqual({
+      OR: [
+        { createdByUserId: "om-1" },
+        { accessGrants: { some: { grantedToUserId: "om-1" } } },
+        { createdBy: { role: "OFFSHORE_TEAM_LEAD", offshoreOffice: "LOCATION_1" } },
+      ],
+    });
+  });
+
+  it.each<Role>(["COORDINATOR", "OFFSHORE_TEAM_LEAD", "TRAINER", "OTTER_TEAM"])(
+    "%s only sees own+granted forms (no hierarchy leg)",
+    (role) => {
+      const actor = user(role, { id: "leaf-1" });
+      expect(formsListWhereClause(actor)).toEqual({
+        OR: [{ createdByUserId: "leaf-1" }, { accessGrants: { some: { grantedToUserId: "leaf-1" } } }],
+      });
     }
   );
 });

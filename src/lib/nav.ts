@@ -9,6 +9,7 @@ export type NavItem = { label: string; href: string; enabled: boolean };
  */
 export function navItemsForRole(role: Role): NavItem[] {
   const dashboard: NavItem = { label: "Dashboard", href: "/dashboard", enabled: true };
+  const forms: NavItem = { label: "Forms", href: "/forms", enabled: true };
 
   switch (role) {
     case "CEO":
@@ -19,6 +20,7 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Training Paths", href: "/catalog/training-paths", enabled: true },
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
+        forms,
         { label: "Exports", href: "/reports/exports", enabled: true },
         { label: "Offshore Data", href: "/offshore/consultants", enabled: true },
         { label: "Location Overview", href: "/location-overview", enabled: true },
@@ -32,6 +34,7 @@ export function navItemsForRole(role: Role): NavItem[] {
         { label: "Training Paths", href: "/catalog/training-paths", enabled: true },
         { label: "Courses", href: "/catalog/courses", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
+        forms,
         { label: "Exports", href: "/reports/exports", enabled: true },
         { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
@@ -40,6 +43,7 @@ export function navItemsForRole(role: Role): NavItem[] {
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
         { label: "Videos", href: "/catalog/videos", enabled: true },
+        forms,
         { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "COORDINATOR":
@@ -47,6 +51,7 @@ export function navItemsForRole(role: Role): NavItem[] {
         dashboard,
         { label: "User Management", href: "/users/management", enabled: true },
         { label: "Profile Requests", href: "/profile-requests", enabled: true },
+        forms,
         { label: "Location Overview", href: "/location-overview", enabled: true },
       ];
     case "CONSULTANT":
@@ -59,13 +64,14 @@ export function navItemsForRole(role: Role): NavItem[] {
         dashboard,
         { label: "Consultant Data", href: "/offshore/consultants", enabled: true },
         { label: "Team Leads", href: "/offshore/team-leads", enabled: true },
+        forms,
       ];
     case "OFFSHORE_TEAM_LEAD":
-      return [dashboard, { label: "My Consultants", href: "/offshore/my-consultants", enabled: true }];
+      return [dashboard, { label: "My Consultants", href: "/offshore/my-consultants", enabled: true }, forms];
     case "TRAINER":
-      return [dashboard, { label: "My Consultants", href: "/trainer/consultants", enabled: true }];
+      return [dashboard, { label: "My Consultants", href: "/trainer/consultants", enabled: true }, forms];
     case "OTTER_TEAM":
-      return [dashboard, { label: "My Consultants", href: "/otter/consultants", enabled: true }];
+      return [dashboard, { label: "My Consultants", href: "/otter/consultants", enabled: true }, forms];
     default:
       return [dashboard];
   }

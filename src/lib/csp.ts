@@ -16,7 +16,10 @@ export function buildCsp(nonce: string, isProduction: boolean): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    // Public Forms file uploads go directly from the browser to Vercel Blob
+    // storage (client-side upload via @vercel/blob/client), bypassing this
+    // server entirely for the large file bytes themselves.
+    "connect-src 'self' https://*.blob.vercel-storage.com",
     "frame-src https://drive.google.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",

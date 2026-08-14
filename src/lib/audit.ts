@@ -12,6 +12,7 @@ type LogAuditInput = {
   trainingPathId?: string | null;
   courseId?: string | null;
   videoId?: string | null;
+  formId?: string | null;
   metadata?: Prisma.InputJsonValue;
 };
 
@@ -35,6 +36,7 @@ export async function logAudit(
       trainingPathId: input.trainingPathId,
       courseId: input.courseId,
       videoId: input.videoId,
+      formId: input.formId,
       metadataJson: input.metadata,
     },
   });

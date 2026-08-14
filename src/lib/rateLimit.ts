@@ -35,3 +35,27 @@ export async function checkLoginRateLimit(ipAddress: string | null, usernameLowe
 
   return ipResult.success && usernameResult.success;
 }
+
+// Public Forms submissions have no authenticated identity to key off, so the
+// two dimensions here are IP (catches one source hammering any form) and
+// form slug (catches one specific public form being spammed from many IPs) —
+// the same both-must-pass idiom as the login limiters above.
+const formSubmitIpLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: "ratelimit:formsubmit:ip" })
+  : null;
+
+const formSubmitFormLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(100, "10 m"), prefix: "ratelimit:formsubmit:form" })
+  : null;
+
+/** Returns true if this public form submission is within limits (or Upstash isn't configured). */
+export async function checkFormSubmissionRateLimit(ipAddress: string | null, formSlug: string): Promise<boolean> {
+  if (!formSubmitIpLimiter || !formSubmitFormLimiter) return true;
+
+  const [ipResult, formResult] = await Promise.all([
+    ipAddress ? formSubmitIpLimiter.limit(ipAddress) : Promise.resolve({ success: true }),
+    formSubmitFormLimiter.limit(formSlug),
+  ]);
+
+  return ipResult.success && formResult.success;
+}

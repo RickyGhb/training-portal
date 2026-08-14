@@ -67,6 +67,10 @@ enum AuditActionType {
   OTTER_FEEDBACK_SUBMITTED
   MARKETING_STATUS_CHANGED
   TEAM_LEAD_REASSIGNED
+  FORM_CREATED
+  FORM_UPDATED
+  FORM_DELETED
+  FORM_SUBMITTED
 }
 
 enum NotificationType {
@@ -104,6 +108,22 @@ enum FeedbackVerdict {
   NOT_READY
 }
 
+enum FormFieldType {
+  SHORT_TEXT
+  PARAGRAPH
+  DATE
+  DROPDOWN
+  MULTIPLE_CHOICE
+  CHECKBOXES
+  FILE_UPLOAD
+}
+
+enum FormFieldOptionsSource {
+  CUSTOM // options come from FormFieldOption rows
+  LOCATIONS // options computed live from the Location table
+  TECHNOLOGIES // options computed live from TECHNOLOGY_OPTIONS
+}
+
 model Location {
   id              String        @id @default(cuid())
   name            String
@@ -114,8 +134,9 @@ model Location {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  users     User[]     @relation("UserLocation")
-  auditLogs AuditLog[]
+  users           User[]           @relation("UserLocation")
+  auditLogs       AuditLog[]
+  formSubmissions FormSubmission[]
 
   @@index([status])
 }
@@ -207,6 +228,9 @@ model User {
   createdCourses        Course[]                       @relation("CourseCreatedBy")
   createdVideos         Video[]                        @relation("VideoCreatedBy")
   updatedVideos         Video[]                        @relation("VideoUpdatedBy")
+  createdForms          Form[]                         @relation("FormCreatedBy")
+  formAccessGranted     FormAccessGrant[]              @relation("FormAccessGrantee")
+  formAccessGivenByMe   FormAccessGrant[]              @relation("FormAccessGrantor")
 
   trainerFeedbackReceived TrainerFeedback[] @relation("TrainerFeedbackConsultant")
   trainerFeedbackGiven    TrainerFeedback[] @relation("TrainerFeedbackTrainer")
@@ -380,6 +404,116 @@ model OtterFeedback {
   @@index([otterUserId])
 }
 
+model Form {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  slug            String        @unique // public URL: /f/{slug}
+  status          ContentStatus @default(ACTIVE)
+  createdByUserId String?
+  createdBy       User?         @relation("FormCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  fields       FormField[]
+  submissions  FormSubmission[]
+  accessGrants FormAccessGrant[]
+  auditLogs    AuditLog[]
+
+  @@index([status])
+}
+
+model FormField {
+  id              String                 @id @default(cuid())
+  formId          String
+  form            Form                   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  label           String
+  helpText        String?
+  type            FormFieldType
+  required        Boolean                @default(false)
+  sortOrder       Int                    @default(0)
+  optionsSource   FormFieldOptionsSource @default(CUSTOM)
+  // File-upload-only config (null for other types):
+  maxFiles        Int?
+  maxFileSizeMb   Int?
+  // Marks this field as the one whose answer resolves a submission's Location
+  // (drives location-based visibility) — only meaningful when optionsSource = LOCATIONS.
+  isLocationField Boolean                @default(false)
+
+  options FormFieldOption[]
+  answers FormAnswer[]
+  files   FormFileUpload[]
+
+  @@index([formId])
+}
+
+model FormFieldOption {
+  id        String    @id @default(cuid())
+  fieldId   String
+  field     FormField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  label     String
+  sortOrder Int       @default(0)
+
+  @@index([fieldId])
+}
+
+model FormSubmission {
+  id           String    @id @default(cuid())
+  formId       String
+  form         Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  locationId   String? // resolved from the isLocationField answer, if present
+  location     Location? @relation(fields: [locationId], references: [id])
+  submittedAt  DateTime  @default(now())
+  respondentIp String?
+
+  answers FormAnswer[]
+  files   FormFileUpload[]
+
+  @@index([formId])
+  @@index([locationId])
+}
+
+model FormAnswer {
+  id           String         @id @default(cuid())
+  submissionId String
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fieldId      String
+  field        FormField      @relation(fields: [fieldId], references: [id])
+  valueText    String? // single-value answer types
+  valueJson    Json? // CHECKBOXES (multi-select)
+
+  @@index([submissionId])
+}
+
+model FormFileUpload {
+  id              String         @id @default(cuid())
+  submissionId    String
+  submission      FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fieldId         String
+  field           FormField      @relation(fields: [fieldId], references: [id])
+  fileName        String
+  storagePathname String // Vercel Blob pathname — never expose as a public URL, see access control
+  fileSizeBytes   Int
+  mimeType        String
+  uploadedAt      DateTime       @default(now())
+
+  @@index([submissionId])
+  @@index([fieldId])
+}
+
+model FormAccessGrant {
+  id              String   @id @default(cuid())
+  formId          String
+  form            Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  grantedToUserId String
+  grantedTo       User     @relation("FormAccessGrantee", fields: [grantedToUserId], references: [id])
+  grantedByUserId String
+  grantedBy       User     @relation("FormAccessGrantor", fields: [grantedByUserId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@unique([formId, grantedToUserId])
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String
@@ -412,6 +546,8 @@ model AuditLog {
   course           Course?         @relation(fields: [courseId], references: [id])
   videoId          String?
   video            Video?          @relation(fields: [videoId], references: [id])
+  formId           String?
+  form             Form?           @relation(fields: [formId], references: [id])
   metadataJson     Json?
   createdAt        DateTime        @default(now())
 

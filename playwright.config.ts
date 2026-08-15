@@ -49,5 +49,11 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    // Nearly every spec's first action logs in as the same seeded CEO
+    // account (see e2e/fixtures.ts's loginAs()) — running the full suite
+    // against an environment where Upstash IS configured would otherwise
+    // exhaust that account's per-username login limit partway through. See
+    // src/lib/rateLimit.ts's `disabled` guard. Never set outside this file.
+    env: { ...process.env, RATE_LIMIT_DISABLED: "true" },
   },
 });

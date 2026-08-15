@@ -2,6 +2,13 @@ import "server-only";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
+// Escape hatch for local E2E runs (see playwright.config.ts) — the full
+// suite's first action in nearly every spec is logging in as the same
+// seeded CEO account, which exhausts the per-username login limit partway
+// through a full run against an environment where Upstash is configured.
+// Never set in Vercel Production/Preview.
+const disabled = process.env.RATE_LIMIT_DISABLED === "true";
+
 // Fails open (no rate limiting) when Upstash isn't configured, so local dev
 // and any environment without these two env vars set keeps working rather
 // than breaking login entirely. Set UPSTASH_REDIS_REST_URL/_TOKEN to enable.
@@ -26,7 +33,7 @@ const usernameLimiter = redis
 
 /** Returns true if this login attempt is within limits (or Upstash isn't configured). */
 export async function checkLoginRateLimit(ipAddress: string | null, usernameLower: string): Promise<boolean> {
-  if (!ipLimiter || !usernameLimiter) return true;
+  if (disabled || !ipLimiter || !usernameLimiter) return true;
 
   const [ipResult, usernameResult] = await Promise.all([
     ipAddress ? ipLimiter.limit(ipAddress) : Promise.resolve({ success: true }),
@@ -50,7 +57,7 @@ const formSubmitFormLimiter = redis
 
 /** Returns true if this public form submission is within limits (or Upstash isn't configured). */
 export async function checkFormSubmissionRateLimit(ipAddress: string | null, formSlug: string): Promise<boolean> {
-  if (!formSubmitIpLimiter || !formSubmitFormLimiter) return true;
+  if (disabled || !formSubmitIpLimiter || !formSubmitFormLimiter) return true;
 
   const [ipResult, formResult] = await Promise.all([
     ipAddress ? formSubmitIpLimiter.limit(ipAddress) : Promise.resolve({ success: true }),

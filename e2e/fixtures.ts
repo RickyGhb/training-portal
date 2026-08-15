@@ -70,5 +70,20 @@ export function deleteDisposableUsers() {
   );
 }
 
+/**
+ * Hard-deletes every form titled "E2E Form ..." (see e2e/forms.spec.ts).
+ * Must be called BEFORE deleteDisposableUsers() in any test that both
+ * creates a form and grants a disposable user access to it — see
+ * scripts/e2e-cleanup-disposable-forms.ts for why the ordering matters.
+ */
+export function deleteDisposableForms() {
+  const repoRoot = join(__dirname, "..");
+  execFileSync(
+    process.execPath,
+    ["--env-file=.env.local", "-r", "tsx/cjs", "scripts/e2e-cleanup-disposable-forms.ts"],
+    { cwd: repoRoot, stdio: "inherit" }
+  );
+}
+
 export const test = base;
 export { expect };

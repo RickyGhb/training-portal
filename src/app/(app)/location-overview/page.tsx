@@ -33,7 +33,17 @@ export default async function LocationOverviewPage({
   const consultants = await prisma.user.findMany({
     where,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    include: { location: true, coordinator: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      username: true,
+      status: true,
+      marketingStatus: true,
+      offshoreOffice: true,
+      location: { select: { name: true } },
+      coordinator: { select: { firstName: true, lastName: true } },
+    },
   });
 
   const inTraining = consultants.filter((c) => c.marketingStatus === "IN_TRAINING");

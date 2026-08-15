@@ -13,23 +13,28 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
   if (!user) redirect("/login");
   if (!canManageCatalogStructure(user.role)) redirect("/dashboard");
 
-  const course = await prisma.course.findUnique({
-    where: { id },
-    include: {
-      videos: {
-        orderBy: { sortOrder: "asc" },
-        include: { video: { select: { id: true, title: true, status: true, durationSeconds: true } } },
+  // Independent of the attach state, so run in parallel and filter attached
+  // videos out in JS below rather than awaiting the course first.
+  const [course, activeVideos] = await Promise.all([
+    prisma.course.findUnique({
+      where: { id },
+      include: {
+        videos: {
+          orderBy: { sortOrder: "asc" },
+          include: { video: { select: { id: true, title: true, status: true, durationSeconds: true } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.video.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true },
+    }),
+  ]);
   if (!course) notFound();
 
-  const attachedVideoIds = course.videos.map((v) => v.videoId);
-  const availableVideos = await prisma.video.findMany({
-    where: { status: "ACTIVE", id: { notIn: attachedVideoIds } },
-    orderBy: { title: "asc" },
-    select: { id: true, title: true },
-  });
+  const attachedVideoIds = new Set(course.videos.map((v) => v.videoId));
+  const availableVideos = activeVideos.filter((v) => !attachedVideoIds.has(v.id));
 
   return (
     <div>

@@ -238,6 +238,7 @@ model User {
   otterFeedbackGiven      OtterFeedback[]   @relation("OtterFeedbackOtterUser")
 
   @@index([role])
+  @@index([role, deletedAt])
   @@index([locationId])
   @@index([coordinatorId])
   @@index([managerId])
@@ -421,6 +422,7 @@ model Form {
   auditLogs    AuditLog[]
 
   @@index([status])
+  @@index([createdByUserId])
 }
 
 model FormField {
@@ -471,6 +473,7 @@ model FormSubmission {
 
   @@index([formId])
   @@index([locationId])
+  @@index([formId, submittedAt])
 }
 
 model FormAnswer {
@@ -512,6 +515,7 @@ model FormAccessGrant {
   createdAt       DateTime @default(now())
 
   @@unique([formId, grantedToUserId])
+  @@index([grantedToUserId])
 }
 
 model Session {
@@ -527,6 +531,7 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([userId, revokedAt])
 }
 
 model AuditLog {
@@ -556,6 +561,7 @@ model AuditLog {
   @@index([actorUserId])
   @@index([actionType])
   @@index([createdAt])
+  @@index([actionType, createdAt])
 }
 
 model Notification {

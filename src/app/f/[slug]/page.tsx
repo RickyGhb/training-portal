@@ -15,11 +15,14 @@ export default async function PublicFormPage({ params }: { params: Promise<{ slu
 
   if (!form || form.status !== "ACTIVE") notFound();
 
-  const locations = await prisma.location.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const needsLocations = form.fields.some((f) => f.optionsSource === "LOCATIONS");
+  const locations = needsLocations
+    ? await prisma.location.findMany({
+        where: { status: "ACTIVE" },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   const fields = form.fields.map((field) => ({
     id: field.id,

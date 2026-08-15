@@ -37,7 +37,21 @@ export type DashboardAggregates = {
   completionByCoordinator: { name: string; avgCompletionPercentage: number }[];
 };
 
-export async function getDashboardAggregates(actor: SessionUser): Promise<DashboardAggregates> {
+type AggregatesConsultantRow = {
+  id: string;
+  location: { name: string } | null;
+  coordinator: { firstName: string; lastName: string } | null;
+  trainingAssignment: { trainingPath: { name: string } } | null;
+};
+
+async function queryAggregatesConsultants(
+  actor: SessionUser
+): Promise<{
+  activeConsultants: number;
+  deactivatedConsultants: number;
+  deletedConsultants: number;
+  consultants: AggregatesConsultantRow[];
+}> {
   const scope = consultantScopeFilter(actor);
   const baseWhere = { role: "CONSULTANT" as const, ...scope };
 
@@ -56,8 +70,14 @@ export async function getDashboardAggregates(actor: SessionUser): Promise<Dashbo
     }),
   ]);
 
-  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
+  return { activeConsultants, deactivatedConsultants, deletedConsultants, consultants };
+}
 
+function buildAggregates(
+  counts: { activeConsultants: number; deactivatedConsultants: number; deletedConsultants: number },
+  consultants: AggregatesConsultantRow[],
+  progressByConsultant: Awaited<ReturnType<typeof getConsultantProgressBatch>>
+): DashboardAggregates {
   const countBy = new Map<string, number>();
   const coordCountBy = new Map<string, number>();
   const locCountBy = new Map<string, number>();
@@ -93,10 +113,10 @@ export async function getDashboardAggregates(actor: SessionUser): Promise<Dashbo
       .sort((a, b) => b.avgCompletionPercentage - a.avgCompletionPercentage);
 
   return {
-    totalConsultants: activeConsultants + deactivatedConsultants,
-    activeConsultants,
-    deactivatedConsultants,
-    deletedConsultants,
+    totalConsultants: counts.activeConsultants + counts.deactivatedConsultants,
+    activeConsultants: counts.activeConsultants,
+    deactivatedConsultants: counts.deactivatedConsultants,
+    deletedConsultants: counts.deletedConsultants,
     consultantsByTrainingPath: toCountRows(countBy),
     consultantsByCoordinator: toCountRows(coordCountBy),
     consultantsByLocation: toCountRows(locCountBy),
@@ -131,10 +151,7 @@ export type ConsultantReportRow = {
   lastActivityDate: Date | null;
 };
 
-export async function getConsultantReportRows(
-  actor: SessionUser,
-  filters: ConsultantReportFilters = {}
-): Promise<ConsultantReportRow[]> {
+async function queryReportRowsConsultants(actor: SessionUser, filters: ConsultantReportFilters) {
   const scope = consultantScopeFilter(actor);
 
   // Scope and filters are combined with AND, not merged into one object — a
@@ -155,7 +172,7 @@ export async function getConsultantReportRows(
     ],
   };
 
-  const consultants = await prisma.user.findMany({
+  return prisma.user.findMany({
     where,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: {
@@ -165,9 +182,12 @@ export async function getConsultantReportRows(
       extraCourses: { include: { course: { select: { name: true } } } },
     },
   });
+}
 
-  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
-
+function buildReportRows(
+  consultants: Awaited<ReturnType<typeof queryReportRowsConsultants>>,
+  progressByConsultant: Awaited<ReturnType<typeof getConsultantProgressBatch>>
+): ConsultantReportRow[] {
   return consultants.map((c) => {
     const progress = progressByConsultant.get(c.id);
     return {
@@ -189,4 +209,45 @@ export async function getConsultantReportRows(
       lastActivityDate: progress?.lastCompletedAt ?? null,
     };
   });
+}
+
+export async function getConsultantReportRows(
+  actor: SessionUser,
+  filters: ConsultantReportFilters = {}
+): Promise<ConsultantReportRow[]> {
+  const consultants = await queryReportRowsConsultants(actor, filters);
+  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
+  return buildReportRows(consultants, progressByConsultant);
+}
+
+export async function getDashboardAggregates(actor: SessionUser): Promise<DashboardAggregates> {
+  const { consultants, ...counts } = await queryAggregatesConsultants(actor);
+  const progressByConsultant = await getConsultantProgressBatch(consultants.map((c) => c.id));
+  return buildAggregates(counts, consultants, progressByConsultant);
+}
+
+/**
+ * Combines what the dashboard page actually needs in one pass. Aggregates
+ * are always computed over the full scope (unfiltered) while rows respect
+ * the user's filter selection, so the two consultant sets can differ — but
+ * they usually overlap heavily, so progress is computed once for their
+ * union instead of once per function (previously ~2x getConsultantProgressBatch
+ * calls, each already batched, on every dashboard render).
+ */
+export async function getDashboardData(
+  actor: SessionUser,
+  filters: ConsultantReportFilters = {}
+): Promise<{ aggregates: DashboardAggregates; rows: ConsultantReportRow[] }> {
+  const [{ consultants: aggregateConsultants, ...counts }, rowConsultants] = await Promise.all([
+    queryAggregatesConsultants(actor),
+    queryReportRowsConsultants(actor, filters),
+  ]);
+
+  const unionIds = new Set([...aggregateConsultants.map((c) => c.id), ...rowConsultants.map((c) => c.id)]);
+  const progressByConsultant = await getConsultantProgressBatch([...unionIds]);
+
+  return {
+    aggregates: buildAggregates(counts, aggregateConsultants, progressByConsultant),
+    rows: buildReportRows(rowConsultants, progressByConsultant),
+  };
 }

@@ -13,11 +13,18 @@ export default async function BulkReassignPage() {
     prisma.user.findMany({
       where: { role: "CONSULTANT", deletedAt: null, ...userVisibilityFilter(actor) },
       orderBy: { firstName: "asc" },
-      include: { coordinator: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        username: true,
+        coordinator: { select: { firstName: true, lastName: true } },
+      },
     }),
     prisma.user.findMany({
       where: { role: "COORDINATOR", status: "ACTIVE", deletedAt: null, ...userVisibilityFilter(actor) },
       orderBy: { firstName: "asc" },
+      select: { id: true, firstName: true, lastName: true },
     }),
   ]);
 

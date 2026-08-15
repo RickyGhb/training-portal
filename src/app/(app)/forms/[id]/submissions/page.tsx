@@ -6,11 +6,21 @@ import { canViewForm, type FormCreatorSubject } from "@/lib/auth/rbac";
 import { SubmissionRow } from "./submission-row";
 
 const LOCATION_SCOPED_ROLES = new Set(["LOCATION_MANAGER", "LOCATION_ADMIN", "COORDINATOR"]);
+const PAGE_SIZE = 50;
 
-export default async function FormSubmissionsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FormSubmissionsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
   const actor = await getCurrentUser();
   if (!actor) redirect("/login");
+
+  const sp = await searchParams;
+  const page = typeof sp.page === "string" ? Math.max(1, parseInt(sp.page, 10) || 1) : 1;
 
   const form = await prisma.form.findUnique({
     where: { id },
@@ -32,15 +42,22 @@ export default async function FormSubmissionsPage({ params }: { params: Promise<
     redirect("/forms");
   }
 
-  const submissions = await prisma.formSubmission.findMany({
-    where: hasFullAccess ? { formId: form.id } : { formId: form.id, locationId: actor.locationId },
-    orderBy: { submittedAt: "desc" },
-    include: {
-      location: { select: { name: true } },
-      answers: { include: { field: { select: { label: true, type: true, optionsSource: true } } } },
-      files: { include: { field: { select: { label: true } } } },
-    },
-  });
+  const where = hasFullAccess ? { formId: form.id } : { formId: form.id, locationId: actor.locationId };
+  const [submissions, total] = await Promise.all([
+    prisma.formSubmission.findMany({
+      where,
+      orderBy: { submittedAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        location: { select: { name: true } },
+        answers: { include: { field: { select: { label: true, type: true, optionsSource: true } } } },
+        files: { include: { field: { select: { label: true } } } },
+      },
+    }),
+    prisma.formSubmission.count({ where }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Dropdown answers bound to the live Locations list store the Location's id
   // as valueText (needed to resolve locationId for Mechanism B) — resolve it
@@ -63,7 +80,7 @@ export default async function FormSubmissionsPage({ params }: { params: Promise<
       </Link>
       <h1 className="page-title mt-2">{form.title}</h1>
       <p className="page-subtitle">
-        {submissions.length} response{submissions.length === 1 ? "" : "s"}
+        {total} response{total === 1 ? "" : "s"}
         {!hasFullAccess && " (scoped to your location)"}
       </p>
 
@@ -86,6 +103,30 @@ export default async function FormSubmissionsPage({ params }: { params: Promise<
             files={s.files.map((f) => ({ id: f.id, fileName: f.fileName, fieldLabel: f.field.label }))}
           />
         ))}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between text-sm text-[var(--color-ink-soft)]">
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <div className="flex gap-2">
+          {page > 1 && (
+            <a
+              href={`?page=${page - 1}`}
+              className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-paper)]"
+            >
+              ← Previous
+            </a>
+          )}
+          {page < totalPages && (
+            <a
+              href={`?page=${page + 1}`}
+              className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-paper)]"
+            >
+              Next →
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

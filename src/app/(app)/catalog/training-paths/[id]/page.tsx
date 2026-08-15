@@ -13,23 +13,28 @@ export default async function TrainingPathDetailPage({ params }: { params: Promi
   if (!user) redirect("/login");
   if (!canManageCatalogStructure(user.role)) redirect("/dashboard");
 
-  const path = await prisma.trainingPath.findUnique({
-    where: { id },
-    include: {
-      courses: {
-        orderBy: { sortOrder: "asc" },
-        include: { course: { select: { id: true, name: true, status: true } } },
+  // Independent of the attach state, so run in parallel and filter attached
+  // courses out in JS below rather than awaiting the path first.
+  const [path, activeCourses] = await Promise.all([
+    prisma.trainingPath.findUnique({
+      where: { id },
+      include: {
+        courses: {
+          orderBy: { sortOrder: "asc" },
+          include: { course: { select: { id: true, name: true, status: true } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.course.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
   if (!path) notFound();
 
-  const attachedCourseIds = path.courses.map((c) => c.courseId);
-  const availableCourses = await prisma.course.findMany({
-    where: { status: "ACTIVE", id: { notIn: attachedCourseIds } },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
+  const attachedCourseIds = new Set(path.courses.map((c) => c.courseId));
+  const availableCourses = activeCourses.filter((c) => !attachedCourseIds.has(c.id));
 
   return (
     <div>

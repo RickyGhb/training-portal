@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getPrimaryTrainingPath, getConsultantProgress } from "@/lib/content-resolution";
 import { prisma } from "@/lib/prisma";
 import { userVisibilityFilter, canExportReports } from "@/lib/auth/rbac";
-import { getDashboardAggregates, getConsultantReportRows, type ConsultantReportFilters } from "@/lib/reports";
+import { getDashboardData, type ConsultantReportFilters } from "@/lib/reports";
 import { StatusBadge } from "@/components/ui/Badge";
 
 function Tile({ label, value }: { label: string; value: string | number }) {
@@ -113,9 +113,8 @@ export default async function DashboardPage({
         : undefined,
   };
 
-  const [aggregates, rows, locations, coordinators, trainingPaths] = await Promise.all([
-    getDashboardAggregates(user),
-    getConsultantReportRows(user, filters),
+  const [{ aggregates, rows }, locations, coordinators, trainingPaths] = await Promise.all([
+    getDashboardData(user, filters),
     user.role === "CEO"
       ? prisma.location.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" } })
       : Promise.resolve([]),

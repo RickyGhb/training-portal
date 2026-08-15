@@ -5,6 +5,15 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { checkFormSubmissionRateLimit } from "@/lib/rateLimit";
 import { logAudit } from "@/lib/audit";
+import { TECHNOLOGY_OPTIONS } from "@/lib/technologyOptions";
+import {
+  DEFAULT_MAX_FILE_SIZE_MB,
+  DEFAULT_MAX_FILES,
+  MAX_ANSWER_TEXT_LENGTH,
+  MAX_CHECKBOX_SELECTIONS,
+  MAX_UPLOAD_FILENAME_LENGTH,
+  isAllowedUploadPathname,
+} from "@/lib/validation/forms";
 
 export type SubmitFormState = { error?: string; success?: boolean };
 
@@ -29,7 +38,7 @@ export async function submitFormResponseAction(_prevState: SubmitFormState, form
 
   const form = await prisma.form.findUnique({
     where: { slug },
-    include: { fields: true },
+    include: { fields: { include: { options: true } } },
   });
   if (!form || form.status !== "ACTIVE") {
     return { error: "This form is no longer accepting responses." };
@@ -40,6 +49,23 @@ export async function submitFormResponseAction(_prevState: SubmitFormState, form
   const withinLimit = await checkFormSubmissionRateLimit(ipAddress, slug);
   if (!withinLimit) {
     return { error: "Too many submissions. Please wait a few minutes and try again." };
+  }
+
+  // Only fetched when a field actually needs it, so most submissions don't
+  // pay for an extra query.
+  const needsLocations = form.fields.some((f) => f.optionsSource === "LOCATIONS");
+  const activeLocations = needsLocations
+    ? await prisma.location.findMany({ where: { status: "ACTIVE" }, select: { id: true } })
+    : [];
+  const activeLocationIds = new Set(activeLocations.map((l) => l.id));
+
+  type FormFieldWithOptions = (typeof form)["fields"][number];
+
+  /** The set of values the client's <select>/checkbox UI could actually have offered for this field — mirrors src/app/f/[slug]/page.tsx's option-building logic. */
+  function validOptionValues(field: FormFieldWithOptions): Set<string> | null {
+    if (field.optionsSource === "LOCATIONS") return activeLocationIds;
+    if (field.optionsSource === "TECHNOLOGIES") return new Set(TECHNOLOGY_OPTIONS.map((t) => t.value));
+    return new Set(field.options.map((o) => o.label));
   }
 
   const answersToCreate: { fieldId: string; valueText?: string; valueJson?: Prisma.InputJsonValue }[] = [];
@@ -64,8 +90,22 @@ export async function submitFormResponseAction(_prevState: SubmitFormState, form
       if (field.required && parsed.length === 0) {
         return { error: `"${field.label}" is required.` };
       }
+      const maxFiles = field.maxFiles ?? DEFAULT_MAX_FILES;
+      if (parsed.length > maxFiles) {
+        return { error: `"${field.label}" allows at most ${maxFiles} file(s).` };
+      }
+      const maxSizeBytes = (field.maxFileSizeMb ?? DEFAULT_MAX_FILE_SIZE_MB) * 1024 * 1024;
       for (const f of parsed) {
         if (!f.pathname || !f.fileName) continue;
+        if (!isAllowedUploadPathname(f.pathname, slug, field.id)) {
+          return { error: `"${field.label}" received an invalid file reference. Please re-upload.` };
+        }
+        if (f.fileName.length > MAX_UPLOAD_FILENAME_LENGTH) {
+          return { error: `"${field.label}" has a file name that's too long.` };
+        }
+        if (typeof f.sizeBytes !== "number" || f.sizeBytes <= 0 || f.sizeBytes > maxSizeBytes) {
+          return { error: `"${field.label}" has a file over the ${field.maxFileSizeMb ?? DEFAULT_MAX_FILE_SIZE_MB}MB limit.` };
+        }
         filesToCreate.push({
           fieldId: field.id,
           fileName: f.fileName,
@@ -82,6 +122,13 @@ export async function submitFormResponseAction(_prevState: SubmitFormState, form
       if (field.required && values.length === 0) {
         return { error: `"${field.label}" is required.` };
       }
+      if (values.length > MAX_CHECKBOX_SELECTIONS) {
+        return { error: `"${field.label}" has too many selections.` };
+      }
+      const valid = validOptionValues(field);
+      if (valid && values.some((v) => !valid.has(v))) {
+        return { error: `"${field.label}" received an invalid selection.` };
+      }
       if (values.length > 0) answersToCreate.push({ fieldId: field.id, valueJson: values });
       continue;
     }
@@ -91,13 +138,22 @@ export async function submitFormResponseAction(_prevState: SubmitFormState, form
     if (field.required && !value) {
       return { error: `"${field.label}" is required.` };
     }
+    if (value.length > MAX_ANSWER_TEXT_LENGTH) {
+      return { error: `"${field.label}" is too long.` };
+    }
+    if (value && (field.type === "DROPDOWN" || field.type === "MULTIPLE_CHOICE")) {
+      const valid = validOptionValues(field);
+      if (valid && !valid.has(value)) {
+        return { error: `"${field.label}" received an invalid selection.` };
+      }
+    }
     if (value) {
       answersToCreate.push({ fieldId: field.id, valueText: value });
       if (field.isLocationField) resolvedLocationId = value;
     }
   }
 
-  if (resolvedLocationId) {
+  if (resolvedLocationId && !activeLocationIds.has(resolvedLocationId)) {
     const location = await prisma.location.findFirst({
       where: { id: resolvedLocationId, status: "ACTIVE" },
       select: { id: true },

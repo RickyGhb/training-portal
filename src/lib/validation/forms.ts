@@ -56,3 +56,24 @@ export const formFieldSchema = z.object({
 export const grantFormAccessSchema = z.object({
   username: usernameSchema,
 });
+
+// --- Public submission validation (src/app/f/[slug]/actions.ts) ---
+// Separate from the builder schemas above: these validate what an anonymous,
+// untrusted visitor submits, not what a form editor configures.
+
+export const MAX_ANSWER_TEXT_LENGTH = 5000;
+export const MAX_CHECKBOX_SELECTIONS = 50;
+export const MAX_UPLOAD_FILENAME_LENGTH = 255;
+export const DEFAULT_MAX_FILE_SIZE_MB = 10;
+export const DEFAULT_MAX_FILES = 1;
+
+/**
+ * The client (public-form.tsx) always uploads to `forms/{slug}/{fieldId}-...`
+ * (see the `upload()` call there). Submitted file metadata is otherwise
+ * client-supplied and untrusted, so this is the one thing worth pinning down
+ * server-side: it stops a crafted submission from pointing a FormFileUpload
+ * row at a blob that belongs to a different form or field.
+ */
+export function isAllowedUploadPathname(pathname: string, slug: string, fieldId: string): boolean {
+  return pathname.startsWith(`forms/${slug}/${fieldId}-`);
+}

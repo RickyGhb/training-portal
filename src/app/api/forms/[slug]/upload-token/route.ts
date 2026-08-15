@@ -15,10 +15,18 @@ import { checkFormSubmissionRateLimit } from "@/lib/rateLimit";
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const form = await prisma.form.findUnique({ where: { slug }, select: { id: true, status: true } });
+  const form = await prisma.form.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      status: true,
+      fields: { where: { type: "FILE_UPLOAD" }, select: { id: true, maxFileSizeMb: true } },
+    },
+  });
   if (!form || form.status !== "ACTIVE") {
     return NextResponse.json({ error: "This form is not accepting responses." }, { status: 404 });
   }
+  const fileFieldsById = new Map(form.fields.map((f) => [f.id, f]));
 
   const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const withinLimit = await checkFormSubmissionRateLimit(ipAddress, slug);
@@ -33,7 +41,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        if (!pathname.startsWith(`forms/${slug}/`)) {
+        const prefix = `forms/${slug}/`;
+        if (!pathname.startsWith(prefix)) {
+          throw new Error("Invalid upload destination.");
+        }
+        // The client always names the blob `{fieldId}-{uuid}-{filename}`
+        // (see public-form.tsx) — cuid()s never contain a dash, so the first
+        // segment is the field id. Matching it against this form's actual
+        // FILE_UPLOAD fields both rejects an unrelated/forged fieldId and
+        // lets us enforce that specific field's configured size limit,
+        // rather than a single hardcoded cap for every field on every form.
+        const fieldId = pathname.slice(prefix.length).split("-")[0];
+        const field = fieldId ? fileFieldsById.get(fieldId) : undefined;
+        if (!field) {
           throw new Error("Invalid upload destination.");
         }
         return {
@@ -46,7 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           ],
-          maximumSizeInBytes: 10 * 1024 * 1024,
+          maximumSizeInBytes: (field.maxFileSizeMb ?? 10) * 1024 * 1024,
           addRandomSuffix: true,
         };
       },

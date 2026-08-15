@@ -118,10 +118,10 @@ export async function updateFormAction(_prevState: FormState, formData: FormData
   return { success: "Form updated." };
 }
 
-export async function setFormStatusAction(formData: FormData): Promise<void> {
+export async function setFormStatusAction(formData: FormData): Promise<{ error?: string } | void> {
   const formId = String(formData.get("formId"));
-  const { actor, form } = await requireFormEditor(formId);
-  if (!form) return;
+  const { actor, form, error } = await requireFormEditor(formId);
+  if (!form) return { error: error ?? "Form not found." };
 
   const nextStatus = String(formData.get("nextStatus")) as "ACTIVE" | "ARCHIVED";
   await prisma.form.update({ where: { id: formId }, data: { status: nextStatus } });
@@ -141,8 +141,8 @@ export async function setFormStatusAction(formData: FormData): Promise<void> {
 
 export async function deleteFormAction(formData: FormData): Promise<{ error?: string } | void> {
   const formId = String(formData.get("formId"));
-  const { actor, form } = await requireFormEditor(formId);
-  if (!form) return;
+  const { actor, form, error } = await requireFormEditor(formId);
+  if (!form) return { error: error ?? "Form not found." };
 
   try {
     await prisma.form.delete({ where: { id: formId } });
@@ -270,15 +270,17 @@ export async function updateFieldAction(_prevState: FormState, formData: FormDat
     return { error: "Only a Dropdown field bound to Locations can be marked as the location field." };
   }
 
-  await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     if (data.isLocationField) {
       await tx.formField.updateMany({
         where: { formId, id: { not: fieldId } },
         data: { isLocationField: false },
       });
     }
-    await tx.formField.update({
-      where: { id: fieldId },
+    // Scoped by formId, not just id, so a form editor can't mutate a field
+    // belonging to a different form by supplying an arbitrary fieldId.
+    const { count } = await tx.formField.updateMany({
+      where: { id: fieldId, formId },
       data: {
         label: data.label,
         helpText: data.helpText,
@@ -290,6 +292,7 @@ export async function updateFieldAction(_prevState: FormState, formData: FormDat
         isLocationField: data.isLocationField,
       },
     });
+    if (count === 0) return false;
 
     if (data.optionsSource === "CUSTOM" && ["DROPDOWN", "MULTIPLE_CHOICE", "CHECKBOXES"].includes(data.type)) {
       await tx.formFieldOption.deleteMany({ where: { fieldId } });
@@ -302,7 +305,9 @@ export async function updateFieldAction(_prevState: FormState, formData: FormDat
     } else {
       await tx.formFieldOption.deleteMany({ where: { fieldId } });
     }
+    return true;
   });
+  if (!updated) return { error: "Question not found on this form." };
 
   revalidatePath(`/forms/${formId}/edit`);
   return { success: "Question updated." };
@@ -311,11 +316,13 @@ export async function updateFieldAction(_prevState: FormState, formData: FormDat
 export async function removeFieldAction(formData: FormData): Promise<{ error?: string } | void> {
   const formId = String(formData.get("formId"));
   const fieldId = String(formData.get("fieldId"));
-  const { form } = await requireFormEditor(formId);
-  if (!form) return;
+  const { form, error } = await requireFormEditor(formId);
+  if (!form) return { error: error ?? "Form not found." };
 
   try {
-    await prisma.formField.delete({ where: { id: fieldId } });
+    // Scoped by formId, not just id — same cross-form IDOR guard as above.
+    const { count } = await prisma.formField.deleteMany({ where: { id: fieldId, formId } });
+    if (count === 0) return { error: "Question not found on this form." };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
       return {
@@ -328,6 +335,11 @@ export async function removeFieldAction(formData: FormData): Promise<{ error?: s
   revalidatePath(`/forms/${formId}/edit`);
 }
 
+// Used as a raw <form action={...}> prop (native up/down buttons), which
+// React types as returning void | Promise<void> only — unlike the
+// ConfirmButton-based actions below, there's no UI path to display an error
+// here, so this stays void; it's already scoped by formId via the findMany
+// below, so there's no IDOR to fix, just no user-facing failure signal.
 export async function moveFieldInFormAction(formData: FormData): Promise<void> {
   const formId = String(formData.get("formId"));
   const fieldId = String(formData.get("fieldId"));
@@ -381,15 +393,19 @@ export async function grantFormAccessAction(_prevState: FormState, formData: For
   return { success: `${target.firstName} ${target.lastName} can now see this form's data.` };
 }
 
-export async function revokeFormAccessAction(formData: FormData): Promise<void> {
+export async function revokeFormAccessAction(formData: FormData): Promise<{ error?: string } | void> {
   const formId = String(formData.get("formId"));
   const grantId = String(formData.get("grantId"));
   const actor = await requireActor();
   const loaded = await loadFormWithCreator(formId);
-  if (!loaded) return;
-  if (!canGrantFormAccess(actor, loaded.form)) return;
+  if (!loaded) return { error: "Form not found." };
+  if (!canGrantFormAccess(actor, loaded.form)) return { error: "You don't have permission to manage access to this form." };
 
-  await prisma.formAccessGrant.delete({ where: { id: grantId } });
+  // Scoped by formId, not just id — an actor with grant rights on one form
+  // can't revoke a grant belonging to a different form by supplying an
+  // arbitrary grantId.
+  const { count } = await prisma.formAccessGrant.deleteMany({ where: { id: grantId, formId } });
+  if (count === 0) return { error: "Access grant not found on this form." };
   revalidatePath(`/forms/${formId}/edit`);
 }
 

@@ -1,17 +1,19 @@
-# Training Portal — Build Progress
+# CrewNex — Build Progress
 
-Living log, updated after each build phase. Full plan: `.claude/plans/i-m-planning-to-build-dreamy-floyd.md` (in this session). Source specs: `Prompt.md`, `Business-Friendly Product Blueprint.md`, `Technical Implementation Blueprint.md` in this folder.
+*(Product name as of 2026-08-14 — this app was called "Training Portal" through Phases 1–6 below; the phase log itself is left as originally written, a historical record. See `CLAUDE.md`'s "Project Overview" for the rename history and `../CLAUDE.md` generally for everything built after Phase 6 — the role rename, offshore/placement roles + placement pipeline, staging environment, security hardening, CI, the Forms feature, and this rebrand — none of which was logged here as a numbered phase.)*
+
+Living log, updated after each build phase through Phase 6. Full plan: `.claude/plans/i-m-planning-to-build-dreamy-floyd.md` (in this session). Source specs: `Prompt.md`, `Business-Friendly Product Blueprint.md`, `Technical Implementation Blueprint.md` in this folder.
 
 **Code lives at:** `~/Documents/Sync-Shared/Projects/training-portal` (moved 2026-08-07 to a Syncthing-synced folder so it's available on both laptops — `node_modules`/`.next` are excluded from the sync, run `npm install` fresh after pulling on a new machine).
 
 **Local dev:** `cd ~/Documents/Sync-Shared/Projects/training-portal && npm run dev` → http://localhost:3000
 
-**Hosting accounts set up:**
-- Vercel: logged in as `rickyb7999-8701` (free tier for now)
-- Supabase project: "Training-Project" (free tier for now), region us-west-2
-- CEO login: username `CEOAdmin`, password `IamAdminCeo@123$` — **change this after first real login**
+**Hosting accounts set up (as of Phase 6 — see `CLAUDE.md` for current state):**
+- Vercel: logged in as `rickyb7999-8701`, project since renamed `training-portal` → `worksphere` (2026-08-14)
+- Supabase project: "Training-Project," region us-west-2 (a separate staging project was added 2026-08-10, see `CLAUDE.md`)
+- CEO login: username `CEOAdmin`, password `IamAdminCeo@123$` — **change this after first real login** (self-service password change now exists, sidebar "Change password")
 
-**Live:** https://training-portal-flame.vercel.app (deployed 2026-08-07 during Phase 6). See `Admin-Guide.md` in this folder for day-to-day operation, deployment, and troubleshooting.
+**Live:** https://crewnex.vercel.app (originally deployed 2026-08-07 during Phase 6 at `training-portal-flame.vercel.app`; renamed 2026-08-14, see `CLAUDE.md`'s "Live URL" note for the full alias history). See `Admin-Guide.md` in this folder for day-to-day operation, deployment, and troubleshooting.
 
 ---
 

@@ -4,9 +4,18 @@ test.describe("RBAC route boundaries", () => {
   test("Coordinator is redirected away from CEO-only pages", async ({ page }) => {
     await loginAs(page, DEMO_USERS.coordinator.username);
 
-    for (const path of ["/locations", "/audit-logs", "/catalog/training-paths", "/users/ceos"]) {
+    for (const path of ["/locations", "/audit-logs", "/catalog/training-paths"]) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard/);
+    }
+  });
+
+  test("Orphaned legacy per-role user-list routes redirect to the consolidated list", async ({ page }) => {
+    await loginAs(page, DEMO_USERS.ceo.username);
+
+    for (const path of ["/users/managers", "/users/location-managers", "/users/coordinators", "/users/consultants", "/users/ceos"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/users\/management/);
     }
   });
 

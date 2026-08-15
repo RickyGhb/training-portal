@@ -94,9 +94,18 @@ Source of truth: `prisma/schema.prisma`. Migration history in `prisma/migrations
 - Both feedback tables cascade on the consultant side but **Restrict** on the trainer/otter side (the feedback author) — an active Trainer/Otter Team account can't be deleted while their feedback history still references it.
 - See "Post-Training Placement Pipeline" under Key Features for the full rollup logic (`src/lib/marketingReadiness.ts`).
 
+**Forms — public data collection (see "Forms" under Key Features for the full picture)**
+- **Form**: id, title, description, slug (unique, public URL `/f/{slug}`), status, createdByUserId, timestamps
+- **FormField**: formId (Cascade), label, helpText, type (`FormFieldType`), required, sortOrder, optionsSource (`FormFieldOptionsSource`), maxFiles/maxFileSizeMb (FILE_UPLOAD only), isLocationField
+- **FormFieldOption**: fieldId (Cascade), label, sortOrder — only populated when optionsSource = CUSTOM
+- **FormSubmission**: formId (Cascade), locationId (resolved from the isLocationField answer, if any), submittedAt, respondentIp
+- **FormAnswer**: submissionId (Cascade), fieldId (**Restrict** — see Cascade cheat sheet), valueText/valueJson
+- **FormFileUpload**: submissionId (Cascade), fieldId (Restrict), fileName, storagePathname (Vercel Blob pathname — never a public URL), fileSizeBytes, mimeType
+- **FormAccessGrant**: formId (Cascade), grantedToUserId/grantedByUserId (Restrict — a staff account with a grant history can't be deleted while it's referenced), unique per (formId, grantedToUserId)
+
 **Audit & Notifications**
-- **AuditLog**: 30 `AuditActionType` values (see enum below). `actorUserId`/`targetUserId`/`locationId`/`trainingPathId`/`courseId`/`videoId` are all **optional FKs with no `onDelete` clause (Postgres default: Restrict)** — meaning any of those referenced rows (a user, location, course, etc.) cannot be deleted while an AuditLog row still points to it. Deleting such rows (e.g. cleanup scripts) must delete/reassign the referencing AuditLog rows first. `MARKETING_STATUS_CHANGED` rows are written with `actorUserId: null` (system-triggered, not a direct user action).
-- **Notification**: four types — `REPORT_EXPORTED`, `PASSWORD_RESET`, `USER_DELETED`, `MARKETING_READY`. `sourceAuditLogId` is also Restrict (not cascade), same caveat.
+- **AuditLog**: 34 `AuditActionType` values (see enum below). `actorUserId`/`targetUserId`/`locationId`/`trainingPathId`/`courseId`/`videoId`/`formId` are all **optional FKs with no `onDelete` clause (Postgres default: Restrict)** — meaning any of those referenced rows (a user, location, course, form, etc.) cannot be deleted while an AuditLog row still points to it. Deleting such rows (e.g. cleanup scripts) must delete/reassign the referencing AuditLog rows first. `MARKETING_STATUS_CHANGED` rows are written with `actorUserId: null` (system-triggered, not a direct user action); so are `FORM_SUBMITTED` rows (anonymous public submitter).
+- **Notification**: five types — `REPORT_EXPORTED`, `PASSWORD_RESET`, `USER_DELETED`, `PROFILE_CHANGE_REQUESTED`, `MARKETING_READY`. `sourceAuditLogId` is also Restrict (not cascade), same caveat. (`PROFILE_CHANGE_REQUESTED` belongs to a self-service profile-change-request feature — `/profile-requests`, `src/app/(app)/profile-requests/` — that predates this Forms documentation pass and is not yet written up here; see the note at the end of this file.)
 - **Session**: token-hash storage (`onDelete: Cascade` from the user side — deleting a user auto-clears their sessions).
 
 **Enums:**
@@ -107,8 +116,8 @@ Source of truth: `prisma/schema.prisma`. Migration history in `prisma/migrations
 - `VisaType`: CPT, INITIAL_OPT, STEM_OPT, H1B, H4EAD, GC, US_CITIZEN
 - `MarketingStatus`: IN_TRAINING, IN_MARKETING
 - `FeedbackVerdict`: READY, NOT_READY
-- `AuditActionType` (30): USER_CREATED, USERNAME_CHANGED, PASSWORD_RESET, USER_DEACTIVATED, USER_REACTIVATED, USER_DELETED, TRAINING_PATH_ASSIGNED, TRAINING_PATH_CHANGED, EXTRA_COURSE_ASSIGNED, EXTRA_COURSE_REMOVED, CONSULTANT_REASSIGNED (defined but not currently written by any code path — `CONSULTANTS_BULK_REASSIGNED` is used instead for the actual bulk-reassign feature), CONSULTANTS_BULK_REASSIGNED, LOCATION_CREATED, LOCATION_UPDATED, TRAINING_PATH_CREATED, TRAINING_PATH_UPDATED, TRAINING_PATH_DELETED, COURSE_CREATED, COURSE_UPDATED, COURSE_DELETED, VIDEO_CREATED, VIDEO_UPDATED, VIDEO_DELETED, REPORT_EXPORTED, LOGIN_SUCCEEDED, LOGIN_FAILED, TRAINER_FEEDBACK_SUBMITTED, OTTER_FEEDBACK_SUBMITTED, MARKETING_STATUS_CHANGED, TEAM_LEAD_REASSIGNED
-- `NotificationType`: REPORT_EXPORTED, PASSWORD_RESET, USER_DELETED, MARKETING_READY
+- `AuditActionType` (34): USER_CREATED, USERNAME_CHANGED, PASSWORD_RESET, USER_DEACTIVATED, USER_REACTIVATED, USER_DELETED, TRAINING_PATH_ASSIGNED, TRAINING_PATH_CHANGED, EXTRA_COURSE_ASSIGNED, EXTRA_COURSE_REMOVED, CONSULTANT_REASSIGNED (defined but not currently written by any code path — `CONSULTANTS_BULK_REASSIGNED` is used instead for the actual bulk-reassign feature), CONSULTANTS_BULK_REASSIGNED, LOCATION_CREATED, LOCATION_UPDATED, TRAINING_PATH_CREATED, TRAINING_PATH_UPDATED, TRAINING_PATH_DELETED, COURSE_CREATED, COURSE_UPDATED, COURSE_DELETED, VIDEO_CREATED, VIDEO_UPDATED, VIDEO_DELETED, REPORT_EXPORTED, LOGIN_SUCCEEDED, LOGIN_FAILED, PROFILE_CHANGE_REQUESTED, PROFILE_UPDATED (see the profile-requests note above — undocumented feature, not further detailed here), TRAINER_FEEDBACK_SUBMITTED, OTTER_FEEDBACK_SUBMITTED, MARKETING_STATUS_CHANGED, TEAM_LEAD_REASSIGNED, FORM_CREATED, FORM_UPDATED, FORM_DELETED, FORM_SUBMITTED
+- `NotificationType`: REPORT_EXPORTED, PASSWORD_RESET, USER_DELETED, PROFILE_CHANGE_REQUESTED, MARKETING_READY
 
 ### Cascade behavior cheat sheet (matters when writing any deletion logic)
 
@@ -208,8 +217,8 @@ src/
 │   │   │   ├── new/page.tsx          # Create User — role picker (only roles the actor can create), location field driven by locationAssignmentModeFor
 │   │   │   ├── actions.ts            # createStaffUserAction, createConsultantAction, updateUsernameAction, resetPasswordAction, setUserStatusAction, deleteUserAction, changeOwnPasswordAction, bulkReassignAction
 │   │   │   ├── bulk-reassign/        # Move multiple consultants to a different coordinator at once
-│   │   │   ├── consultants/[id]/     # Per-consultant detail: progress tiles, assign/change primary path, add/remove extra courses (reachable today only via the legacy /users/consultants list or a direct URL — see "Orphaned routes" below)
-│   │   │   ├── managers/, location-managers/, coordinators/, consultants/, ceos/   # LEGACY per-role list pages — still functional (each queries by role + userVisibilityFilter) but NOT linked from any nav or from /users/management; superseded by the consolidated list. See "Orphaned routes."
+│   │   │   ├── consultants/[id]/     # Per-consultant detail: progress tiles, assign/change primary path, add/remove extra courses — linked directly from /users/management now (fixed 2026-08-13, see "Orphaned routes" below)
+│   │   │   ├── managers/, location-managers/, coordinators/, consultants/, ceos/   # Each now just `redirect("/users/management")` (fixed 2026-08-15) — kept only so old bookmarks/links land somewhere useful. consultants/[id]/ above is unaffected (different route segment).
 │   │   ├── catalog/
 │   │   │   ├── training-paths/       # CEO + Location Manager: create/edit/archive/delete; [id]/ = attach/reorder courses
 │   │   │   ├── courses/              # CEO + Location Manager: create/edit/archive/delete; [id]/ = attach/reorder videos
@@ -227,11 +236,20 @@ src/
 │   │   ├── trainer/
 │   │   │   ├── actions.ts            # submitTrainerFeedbackAction
 │   │   │   └── consultants/page.tsx  # Trainer-only: consultants assigned to them, verdict + notes form
-│   │   └── otter/
-│   │       ├── actions.ts            # submitOtterFeedbackAction
-│   │       └── consultants/page.tsx  # Otter Team-only: consultants assigned to them, verdict + notes form
+│   │   ├── otter/
+│   │   │   ├── actions.ts            # submitOtterFeedbackAction
+│   │   │   └── consultants/page.tsx  # Otter Team-only: consultants assigned to them, verdict + notes form
+│   │   ├── profile-requests/         # Self-service profile-change-request workflow — undocumented here, see the Forms section's note
+│   │   └── forms/                    # Every role but Consultant: build/manage forms — see "Forms" under Key Features
+│   │       ├── actions.ts            # createFormAction, updateFormAction, setFormStatusAction, deleteFormAction, addFieldAction, updateFieldAction, removeFieldAction, moveFieldInFormAction, grantFormAccessAction, revokeFormAccessAction
+│   │       ├── page.tsx              # /forms — list + create
+│   │       └── [id]/edit/, [id]/submissions/  # Builder UI; paginated (50/page) responses view
+│   ├── f/[slug]/                     # PUBLIC, unauthenticated form-fill surface — see "Forms" under Key Features. actions.ts's submitFormResponseAction is the only unauthenticated write path in the app besides login.
 │   └── api/
-│       └── reports/export/route.ts   # The one plain REST route (GET, not a server action) — streams CSV or XLSX
+│       ├── reports/export/route.ts   # The one plain REST route among the original app's routes (GET, not a server action) — streams CSV or XLSX
+│       ├── forms/[slug]/upload-token/route.ts  # Mints a short-lived Vercel Blob client-upload token for public form file uploads
+│       ├── forms/files/[fileId]/route.ts       # Authenticated download of an uploaded form file — gated by the same visibility rules as the form itself
+│       └── cron/cleanup-sessions/route.ts      # Vercel Cron (daily, see vercel.json), CRON_SECRET-gated — deletes expired/long-revoked Session rows (added 2026-08-15)
 ├── lib/
 │   ├── auth/
 │   │   ├── session.ts                # Session creation/verification, getCurrentUser()
@@ -246,18 +264,20 @@ src/
 │   ├── marketingReadiness.ts         # evaluateMarketingReadiness(consultantUserId) — the Trainer+Otter dual sign-off rollup, see Key Features below
 │   ├── offshoreOfficeLabels.ts       # OFFSHORE_OFFICE_LABELS — display labels for LOCATION_1/LOCATION_2
 │   ├── visaTypeLabels.ts             # VISA_TYPE_LABELS — display labels for VisaType enum
-│   ├── reports.ts                    # getDashboardAggregates(), getConsultantReportRows() — scope (consultantScopeFilter) and user filters combined via Prisma AND, never merged, so a filter can only narrow within scope, never widen it
+│   ├── reports.ts                    # getDashboardData() (added 2026-08-15 — computes the batched consultant-progress map once for the union of the aggregates+rows consultant sets, replacing two separate getConsultantProgressBatch calls per dashboard render), getDashboardAggregates(), getConsultantReportRows() — scope (consultantScopeFilter) and user filters combined via Prisma AND, never merged, so a filter can only narrow within scope, never widen it
+│   ├── rateLimit.ts                  # checkLoginRateLimit(), checkFormSubmissionRateLimit() — Upstash-backed, fails open if unconfigured; RATE_LIMIT_DISABLED env escape hatch for local E2E only (added 2026-08-15)
+│   ├── csp.ts                        # buildCsp() — the CSP policy-string builder, unit-testable separately from proxy.ts
 │   ├── errors.ts                     # UserFacingError — only errors deliberately thrown with this class get their .message shown to the client
 │   └── validation/
 │       ├── user.ts                   # optionalTrimmedString() (blank-string-to-undefined preprocessor), usernameSchema, nameSchema, createStaffUserSchema, createConsultantSchema, createLocationSchema, assignTrainerSchema, assignOtterTeamSchema, submitFeedbackSchema, calendlyLinkSchema (https?:// scheme-allowlisted, see security note below)
-│       └── catalog.ts                # trainingPathSchema, courseSchema, videoSchema, videoEditSchema
+│       ├── catalog.ts                # trainingPathSchema, courseSchema, videoSchema, videoEditSchema
+│       └── forms.ts                  # formSchema, formFieldSchema, grantFormAccessSchema (builder input) + isAllowedUploadPathname(), MAX_ANSWER_TEXT_LENGTH, etc. (public-submission validation, added 2026-08-15 alongside the Forms IDOR fixes)
 └── components/
     ├── ui/
     │   ├── Badge.tsx                 # StatusBadge — color-coded by ACTIVE/DEACTIVATED/DELETED/ARCHIVED
     │   ├── ConfirmButton.tsx         # Yes/no confirmation modal wrapper, used for every destructive/high-impact action
     │   └── FormModalButton.tsx       # Modal containing real form fields (vs. ConfirmButton's plain yes/no)
     └── users/
-        ├── UserTable.tsx             # Reusable table (used by the legacy per-role pages)
         ├── UserRowActions.tsx        # Edit username / reset password / deactivate-reactivate / delete, all via FormModalButton/ConfirmButton
         ├── CreateUserForm.tsx        # One form for every creatable role; location field driven by locationAssignmentModeFor, offshore office field driven by offshoreOfficeAssignmentModeFor, optional Trainer/Otter Team pickers in the Consultant fragment
         ├── TrainerAssignForm.tsx     # Reassign a Consultant's Trainer (consultant detail page)
@@ -269,10 +289,11 @@ Also: `src/app/(app)/profile/CalendlyLinkForm.tsx` — self-service Calendly lin
 
 ### Orphaned routes (real, worth knowing before changing nav or user-list logic)
 
-The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07) introduced `/users/management` and `/users/new` as the real UI entry points, but did **not** delete or redirect the older per-role pages. As of this writing:
+The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07) introduced `/users/management` and `/users/new` as the real UI entry points, but did not initially delete or redirect the older per-role pages.
 
-- `/users/managers`, `/users/location-managers`, `/users/coordinators`, `/users/consultants`, `/users/ceos` — each still works (role-gated, queries by role + `userVisibilityFilter`), but nothing in the current UI links to them. Only reachable by typing the URL directly.
-- `/users/consultants/[id]` (the per-consultant "Training & progress" detail page — assign path, manage extra courses) **is** still a real, actively-designed feature. ~~`/users/management`'s row actions don't currently link to it~~ — **fixed 2026-08-13**: `/users/management/page.tsx` now renders the same "Training & progress" link (gated to `role === "CONSULTANT" && status !== "DELETED"`) as a sibling to `UserRowActions` on each Consultant row, matching the pattern `UserTable.tsx`'s `showLearningLink` prop already used on the legacy list page. The primary-path assignment UI is discoverable from the main nav for every role that can reach `/users/management` now, including Coordinators.
+- ~~`/users/managers`, `/users/location-managers`, `/users/coordinators`, `/users/consultants`, `/users/ceos` — each still works (role-gated, queries by role + `userVisibilityFilter`), but nothing in the current UI links to them.~~ — **fixed 2026-08-15**: each of these is now a plain `redirect("/users/management")`, with the role-scoped query logic and `UserRowActions`/`UserTable`-rendering removed entirely (`UserTable.tsx` itself deleted — it had no other callers). Kept as redirects rather than deleted outright so old bookmarks/links still land somewhere useful.
+- `/users/consultants/[id]` (the per-consultant "Training & progress" detail page — assign path, manage extra courses) **is** still a real, actively-designed feature, unaffected by the above (`/users/consultants/page.tsx`, the list, redirects; `/users/consultants/[id]/page.tsx`, the detail route, does not). `/users/management/page.tsx` links to it directly (fixed 2026-08-13, see below) — discoverable from the main nav for every role that can reach `/users/management`, including Coordinators.
+- ~~`/users/management`'s row actions don't currently link to it~~ — **fixed 2026-08-13**: `/users/management/page.tsx` now renders the same "Training & progress" link (gated to `role === "CONSULTANT" && status !== "DELETED"`) as a sibling to `UserRowActions` on each Consultant row.
 
 ---
 
@@ -281,7 +302,7 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 ### 1. User Management
 - Five-role hierarchy, each creating/managing only roles below it (see RBAC section)
 - Consultant: single-active-session enforcement
-- Login is rate-limited (`src/lib/rateLimit.ts`, Upstash Redis): 20 attempts/10min per IP and 8 attempts/15min per username, both must pass or `loginAction` returns a generic "too many attempts" error before ever touching the DB. Fails open if Upstash isn't configured.
+- Login is rate-limited (`src/lib/rateLimit.ts`, Upstash Redis): 20 attempts/10min per IP and 8 attempts/15min per username, both must pass or `loginAction` returns a generic "too many attempts" error before ever touching the DB. Fails open if Upstash isn't configured. `RATE_LIMIT_DISABLED=true` (added 2026-08-15, set only in `playwright.config.ts`'s local `webServer.env`, never in Vercel) bypasses both this and the form-submission limiter entirely — fixes the full-E2E-suite lockout documented under "Testing" below.
 - Status lifecycle: ACTIVE → DEACTIVATED (reversible, blocks login) → DELETED (soft delete, reversible only by direct DB action, kept for audit/reporting under "Deleted (archived)")
 - Bulk consultant reassignment between coordinators, scoped to the actor's manageable set
 - Self-service password change (`ChangePasswordButton` in the sidebar) — verifies current password, signs out every session including the current one, redirects to `/login`
@@ -310,12 +331,12 @@ The "Merge Dashboard/Reports, add consolidated User Management" work (2026-08-07
 - Dashboard/report metrics: completion %, completed/pending video counts, last-completed item + date — all derived from `getConsultantProgress()` in `content-resolution.ts`, never re-derived ad hoc
 
 ### 5. Reporting & Exports
-- **Reports live inside the Dashboard page now** — for any non-Consultant role, `/dashboard` renders stat tiles, five breakdown panels (by training path / coordinator / location, avg. completion by path / coordinator), a filter form, and the full consultant metrics table, all scoped server-side.
+- **Reports live inside the Dashboard page now** — for any non-Consultant role, `/dashboard` renders stat tiles, five breakdown panels (by training path / coordinator / location, avg. completion by path / coordinator), a filter form, and the full consultant metrics table, all scoped server-side. **`getDashboardData()`** (added 2026-08-15, `src/lib/reports.ts`) computes both the tiles/breakdowns (unfiltered-by-user-filters aggregates) and the table rows (filtered) in one call, sharing a single batched consultant-progress computation over the union of both consultant sets — the two previously ran fully independently, each paying for its own `getConsultantProgressBatch` call. `getDashboardAggregates()`/`getConsultantReportRows()` still exist standalone (the export route at `/api/reports/export` still calls the latter directly, since it never needs aggregates).
 - Export (`/reports/exports`, CEO/Location Manager only as of 2026-08-10 — Location Admin no longer has export access): same filters, two buttons hitting `GET /api/reports/export?format=csv|xlsx`. CSV is hand-escaped; XLSX via ExcelJS. Every export logs `REPORT_EXPORTED`; a Location Manager's export (not CEO's) additionally queues a CEO notification.
 - **CSRF-protected** (added 2026-08-10, `src/lib/csrf.ts`) — the export route is a plain `GET` (not a Server Action), so it doesn't get Next.js's automatic Server Action CSRF protection on its own. A synchronizer-token pattern closes this: `getCsrfToken()` derives a token from the session's own httpOnly cookie value (no separate secret needed — the attacker can force the cookie to be *sent* cross-site, but same-origin policy still stops them from *reading* the exports page's HTML to learn the token), embedded as a hidden field in the export form and verified via `verifyCsrfToken()` (timing-safe compare) before the route does any work.
 
 ### 6. Audit Logging
-- 26 `AuditActionType` values, every sensitive mutation across the app writes one via `logAudit()` (or, for login events, a direct `prisma.auditLog.create` call in `src/app/login/actions.ts`, which intentionally bypasses `logAudit()`)
+- 34 `AuditActionType` values, every sensitive mutation across the app writes one via `logAudit()` (or, for login events, a direct `prisma.auditLog.create` call in `src/app/login/actions.ts`, which intentionally bypasses `logAudit()`)
 - CEO-only viewer (`/audit-logs`), paginated 50/page, filterable by action type + date range
 - Every AuditLog row optionally carries actor, target user, location, training path, course, and/or video context, plus a free-form `metadataJson` blob
 
@@ -333,6 +354,22 @@ Two independent, required sign-offs move a Consultant from `IN_TRAINING` to `IN_
 - **Location Overview** (`/location-overview`): CEO gets an office dropdown (`LOCATION_1`/`LOCATION_2`) plus In-Training/In-Marketing counts and lists for the selected office; Location Manager/Location Admin/Coordinator get the same split pre-scoped to their own manageable consultants (no dropdown). Consultant sees only their own status, inline on their personal `/dashboard` — never a list of others.
 
 **Security note (found + fixed 2026-08-09):** `calendlyLinkSchema` originally used a bare `z.string().url()`, which validates that a string parses as *some* URL but not its *scheme* — a `javascript:`/`data:` URI passed that check and would have rendered unsanitized into an `<a href>` on the Consultant's profile (stored XSS). Fixed with an explicit `/^https?:\/\//i` `.refine()` in `src/lib/validation/user.ts`. Verified both that the old check let the payload through and that the fix rejects it.
+
+### 9. Forms — public data collection (added before 2026-08-14, documented here 2026-08-15)
+Every role except Consultant can build a form (`canCreateForm`) whose public link (`/f/{slug}`, a random-suffixed slugified title) anyone can fill out with no login — the one deliberately unauthenticated write surface in the app besides `/login` itself.
+
+- **Builder** (`/forms`, `/forms/[id]/edit`): create/edit a form's title+description, add/edit/remove/reorder questions (`FormField` — `SHORT_TEXT`, `PARAGRAPH`, `DATE`, `DROPDOWN`, `MULTIPLE_CHOICE`, `CHECKBOXES`, `FILE_UPLOAD`), share it with a specific named person (`FormAccessGrant`, upsert-by-username), delete (blocked once it has responses — see Cascade cheat sheet — archive instead) or archive/reactivate. Choice-type fields source their options from a custom newline-separated list, the live `Location` list, or the live technology list (`TECHNOLOGY_OPTIONS`) — the last two stay in sync automatically as those change, never copied at field-creation time.
+- **Location routing**: exactly one `DROPDOWN` field sourced from Locations can be marked `isLocationField` per form; the submitted value resolves `FormSubmission.locationId`, which is what location-scoped viewers (Mechanism B below) match against. Forms with no such field leave every submission's `locationId` null.
+- **Public fill** (`/f/[slug]`, `src/app/f/[slug]/`): anonymous, no CSRF token (Server Actions get Next's built-in protection regardless; a session-cookie-keyed synchronizer token doesn't apply to a visitor with no session) — abuse is mitigated by rate limiting (`checkFormSubmissionRateLimit`, both IP- and slug-keyed) plus a hidden honeypot field. Server-side validates (not just client-side, added 2026-08-15 alongside the IDOR fixes below): text-answer length, choice values against the field's real option set, per-field `maxFiles`/`maxFileSizeMb`, and that uploaded file pathnames actually belong to this form+field (`isAllowedUploadPathname` in `src/lib/validation/forms.ts`).
+- **File uploads**: browser uploads bytes directly to Vercel Blob (`@vercel/blob/client`, `access: "private"`) via a short-lived token minted by `POST /api/forms/[slug]/upload-token` — file bytes never transit this server. The token route enforces that specific field's configured `maxFileSizeMb` (parsed off the `{fieldId}-{uuid}-{filename}` pathname the client always generates) rather than one blanket limit for every field. Reading an uploaded file back requires authentication — `GET /api/forms/files/[fileId]`, gated by the same visibility rules as the form itself, never a public Blob URL.
+- **Visibility — three independent mechanisms**, in `src/lib/auth/rbac.ts`:
+  - **A. Creator hierarchy** (`canViewFormsByCreator`) — a role sees forms built by its own organizational subordinates (e.g. a Location Manager sees forms built by Location Admins/Coordinators in their own location).
+  - **B. Per-submission location matching** (folded into `canViewSubmission`) — a Location Manager/Admin/Coordinator whose own `locationId` matches a *specific submission's* resolved `locationId` can see that one submission, independent of who built the form or any grant.
+  - **C. Explicit per-person grants** (`FormAccessGrant`, `canGrantFormAccess` — CEO or the form's own creator only can grant).
+  - Owning the form or being CEO always grants full access. `formsListWhereClause` (Mechanisms A+C only — B never surfaces a whole form in the `/forms` list, only individual submissions within one already otherwise visible) drives the list page; `canViewForm`/`canViewSubmission` drive the edit and submissions pages.
+- **Security fixes (2026-08-15)**: `updateFieldAction`/`removeFieldAction`/`revokeFormAccessAction` originally scoped their mutation by a bare client-supplied `fieldId`/`grantId` without also checking it belonged to the authorized `formId` — an editor of one form could edit/delete a field or revoke a grant belonging to a *different* form. Fixed by scoping every mutation by both ids together.
+- Fields: id, title, description, slug (unique), status, createdByUserId, timestamps. `FormField`: label, helpText, type, required, sortOrder, optionsSource, maxFiles/maxFileSizeMb (FILE_UPLOAD only), isLocationField. `FormSubmission`: formId, locationId, submittedAt, respondentIp. `FormAnswer`: submissionId, fieldId, valueText/valueJson. `FormFileUpload`: submissionId, fieldId, fileName, storagePathname, fileSizeBytes, mimeType. `FormAccessGrant`: formId, grantedToUserId, grantedByUserId (unique per formId+grantedToUserId).
+- Not yet covered: `docs/*.md` (see the note at the end of this file).
 
 ---
 
@@ -406,19 +443,19 @@ Two independent, required sign-offs move a Consultant from `IN_TRAINING` to `IN_
 
 ## Navigation Structure
 
-Defined in `src/lib/nav.ts` (`navItemsForRole(role)`). No `enabled: false` placeholders remain — every item currently in the nav is a live, working page.
+Defined in `src/lib/nav.ts` (`navItemsForRole(role)`). No `enabled: false` placeholders remain — every item currently in the nav is a live, working page. **Updated 2026-08-15** — a `Forms` item was added to every non-Consultant role's nav and a `Profile Requests` item to Coordinator's, neither previously reflected here:
 
-- **CEO (11):** Dashboard, Locations, User Management, Training Paths, Courses, Videos, Exports, Offshore Data, Location Overview, Notifications, Audit Logs
-- **LOCATION_MANAGER — Location Manager (7):** Dashboard, User Management, Training Paths, Courses, Videos, Exports, Location Overview
-- **LOCATION_ADMIN — Location Admin (5):** Dashboard, User Management, Videos, Exports, Location Overview
-- **COORDINATOR (3):** Dashboard, User Management, Location Overview
+- **CEO (12):** Dashboard, Locations, User Management, Training Paths, Courses, Videos, Forms, Exports, Offshore Data, Location Overview, Notifications, Audit Logs
+- **LOCATION_MANAGER — Location Manager (8):** Dashboard, User Management, Training Paths, Courses, Videos, Forms, Exports, Location Overview
+- **LOCATION_ADMIN — Location Admin (5):** Dashboard, User Management, Videos, Forms, Location Overview
+- **COORDINATOR (5):** Dashboard, User Management, Profile Requests, Forms, Location Overview
 - **CONSULTANT (2):** My Dashboard, My Courses
-- **OFFSHORE_MANAGER — Offshore Manager (3):** Dashboard, Consultant Data, Team Leads
-- **OFFSHORE_TEAM_LEAD — Offshore Team Lead (2):** Dashboard, My Consultants
-- **TRAINER (2):** Dashboard, My Consultants
-- **OTTER_TEAM — Otter Team (2):** Dashboard, My Consultants
+- **OFFSHORE_MANAGER — Offshore Manager (4):** Dashboard, Consultant Data, Team Leads, Forms
+- **OFFSHORE_TEAM_LEAD — Offshore Team Lead (3):** Dashboard, My Consultants, Forms
+- **TRAINER (3):** Dashboard, My Consultants, Forms
+- **OTTER_TEAM — Otter Team (3):** Dashboard, My Consultants, Forms
 
-Bulk Reassignment, per-consultant detail, and the legacy per-role list pages are reachable by link-from-page or direct URL but are not top-level nav items — see "Orphaned routes" above. For the four offshore/placement roles, "Dashboard" in the nav is `/dashboard`, which immediately redirects to their real landing page (`/offshore/consultants`, `/offshore/my-consultants`, `/trainer/consultants`, `/otter/consultants` respectively) — `/dashboard` itself is built around the location-hierarchy reporting view these roles aren't part of.
+Bulk Reassignment and per-consultant detail are reachable by link-from-page or direct URL but are not top-level nav items. The legacy per-role user-list pages (`/users/managers` etc.) are not nav items either — they now redirect to `/users/management`, see "Orphaned routes" above. For the four offshore/placement roles, "Dashboard" in the nav is `/dashboard`, which immediately redirects to their real landing page (`/offshore/consultants`, `/offshore/my-consultants`, `/trainer/consultants`, `/otter/consultants` respectively) — `/dashboard` itself is built around the location-hierarchy reporting view these roles aren't part of. `Profile Requests` (Coordinator only) belongs to the self-service profile-change-request feature — see the undocumented-feature note under "Forms" above.
 
 ---
 
@@ -460,11 +497,16 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
 
 ### Testing (added/expanded 2026-08-10)
 
-**Unit tests** (`npm run test:unit`, Vitest, `vitest.config.mts`): 182 tests across 11 files in
-`src/lib/`, added the same day as an N+1-queries/no-RBAC-tests/no-new-role-E2E audit finding.
-- **`src/lib/auth/rbac.ts`** — the RBAC matrix, all 20 exported functions, ~92 cases. This file
-  has zero runtime imports (only type-only ones), so it needs no mocking at all.
+**Unit tests** (`npm run test:unit`, Vitest, `vitest.config.mts`): 262 tests across 15 files in
+`src/lib/`, started as an N+1-queries/no-RBAC-tests/no-new-role-E2E audit finding (2026-08-10) and
+expanded 2026-08-15 alongside the Forms IDOR fixes.
+- **`src/lib/auth/rbac.ts`** — the RBAC matrix, all exported functions including the Forms
+  visibility mechanisms (`canCreateForm`, `canViewFormsByCreator`, `canGrantFormAccess`,
+  `canViewForm`, `canViewSubmission`). This file has zero runtime imports (only type-only ones),
+  so it needs no mocking at all.
 - Other pure files with dedicated tests: `drive.ts`, `validation/user.ts`, `validation/catalog.ts`,
+  `validation/forms.ts` (added 2026-08-15 — currently just `isAllowedUploadPathname()`, the
+  pathname-prefix check used to close the Forms file-upload cross-form-reference gap),
   `nav.ts`, `roleLabels.ts`/`offshoreOfficeLabels.ts`/`visaTypeLabels.ts` (combined in
   `labels.test.ts`), `technologyOptions.ts`.
 - Files needing light mocking (`vi.mock` on `@/lib/prisma`, `@/lib/audit`, or `next/headers`):
@@ -480,15 +522,24 @@ node --env-file=.env.local -r tsx/cjs scripts/e2e-cleanup-disposable-users.ts   
   constructs its client eagerly at import time and throws if `DATABASE_URL` is unset, even in
   test files that only mock prisma calls and never really connect — `vitest.config.mts` sets a
   dummy `DATABASE_URL` for the whole test run to work around this (never a real DB URL).
-- Wired into CI: `.github/workflows/ci.yml` runs `npm run test:unit` between lint and build.
+- Wired into CI: `.github/workflows/ci.yml` runs `npm run lint` → `npm run typecheck` (added
+  2026-08-15, `tsc --noEmit`) → `npm run test:unit` → `npm run build`. Triggers on push to `main`
+  and `phase-*` branches (widened 2026-08-15 — previously `main`-only, so in-progress branch work
+  was never gated) plus PRs against `main`. Still no E2E step (needs staging DB + Upstash
+  credentials as GitHub Actions secrets, not yet set up).
 
 **E2E** (`npm run test:e2e`, Playwright, staging DB): added `e2e/offshore.spec.ts`,
 `e2e/trainer-otter.spec.ts`, `e2e/marketing-pipeline.spec.ts` (added 2026-08-10) covering the four
 2026-08-09 offshore/placement roles end to end — Team Lead creation/assignment, Trainer/Otter
 feedback submission, and the full dual-sign-off pipeline (`evaluateMarketingReadiness`) flipping a
-consultant to "In Marketing" only once **both** verdicts are READY, not just one. All disposable
-users are created via the existing `disposableUsername()`/`deleteDisposableUsers()` pattern — no
-new seed data.
+consultant to "In Marketing" only once **both** verdicts are READY, not just one. Added
+`e2e/forms.spec.ts` (2026-08-15): builds a form as CEO, confirms a staff user with no relationship
+to it is redirected away from its responses, grants access, submits the form publicly and
+anonymously, then confirms the granted user can see the response — cleans up via a new
+`scripts/e2e-cleanup-disposable-forms.ts`/`deleteDisposableForms()`, which must run *before* the
+existing `deleteDisposableUsers()` in any test using both (a disposable user still referenced by a
+`FormAccessGrant` can't be deleted first — Restrict FK). All disposable users are created via the
+existing `disposableUsername()`/`deleteDisposableUsers()` pattern — no new seed data.
 
 Two shared-fixture bugs in `e2e/fixtures.ts`'s `loginAs()` were found and fixed while writing these
 (both fixes are strictly safer for every existing spec too, not just the new ones):
@@ -505,14 +556,13 @@ Two shared-fixture bugs in `e2e/fixtures.ts`'s `loginAs()` were found and fixed 
    redirect chains through it.
 
 **Operational gotcha found running the full suite for the first time against staging (2026-08-10),
-not yet fixed, worth knowing:** the login rate limiter (`src/lib/rateLimit.ts`, 8 attempts/15min
-per username) and the E2E suite are in real tension — nearly every spec file's first action is
-`loginAs(page, DEMO_USERS.ceo.username)`, and running all 8 spec files back to back exhausts the
-CEO account's rate-limit budget partway through, cascading into unrelated-looking failures for
-every test after that point (stuck on `/login`). Individual spec files, or a few run together, are
-fine — it's only the full suite in one go that trips it. No fix applied yet; options for later:
-exempt seeded demo accounts from rate limiting, add a test/CI bypass (Upstash keys can be flushed
-by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
+fixed 2026-08-15:** the login rate limiter (`src/lib/rateLimit.ts`, 8 attempts/15min per username)
+and the E2E suite were in real tension — nearly every spec file's first action is
+`loginAs(page, DEMO_USERS.ceo.username)`, and running all spec files back to back exhausted the CEO
+account's rate-limit budget partway through, cascading into unrelated-looking failures for every
+test after that point (stuck on `/login`). Fixed with a `RATE_LIMIT_DISABLED=true` escape hatch in
+`rateLimit.ts`, set only in `playwright.config.ts`'s `webServer.env` (i.e. only for the local dev
+server Playwright itself boots) — never set in Vercel Production/Preview.
 
 **Known pre-existing gaps surfaced by this being staging's first full E2E run (not caused by
 2026-08-10's changes, not yet fixed):**
@@ -529,20 +579,23 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 - `prisma/migrations/20260808212645_rename_manager_roles/` — `ALTER TYPE "Role" RENAME VALUE 'LOCATION_MANAGER' TO 'LOCATION_ADMIN'` then `ALTER TYPE "Role" RENAME VALUE 'MANAGER' TO 'LOCATION_MANAGER'` (order matters — renaming `LOCATION_MANAGER` out of the way first avoids a collision)
 - `prisma/migrations/20260809190852_add_offshore_trainer_otter_roles/` — adds `OFFSHORE_MANAGER`/`OFFSHORE_TEAM_LEAD`/`TRAINER`/`OTTER_TEAM` to `Role`, the `offshoreTeamLeadId`/`trainerUserId`/`otterTeamUserId` self-relations (`SetNull`), `calendlyLink`/`marketingStatus`, `TrainerFeedback`/`OtterFeedback` tables, `MarketingStatus`/`FeedbackVerdict` enums, and the 4 new `AuditActionType`/1 new `NotificationType` values
 - `prisma/migrations/20260813190923_add_training_path_technology/` — adds nullable `TrainingPath.technology` + `@@index([technology])`
+- (An unlisted-here migration adds the Forms feature's 7 models, `FormFieldType`/`FormFieldOptionsSource` enums, and the 4 `FORM_*` `AuditActionType` values — added before 2026-08-14, not yet cross-referenced in this list.)
+- `prisma/migrations/20260815221001_add_performance_indexes/` — adds 6 composite indexes found missing during a 2026-08-15 performance review: `User[role,deletedAt]`, `AuditLog[actionType,createdAt]`, `FormSubmission[formId,submittedAt]`, `FormAccessGrant[grantedToUserId]`, `Session[userId,revokedAt]`, `Form[createdByUserId]`. Applied to staging same day; **not yet applied to production** as of this writing — see Deployment below.
 - The build does **not** run migrations automatically — after any schema change, run `prisma migrate deploy` by hand (locally or in CI) before/after deploying the dependent code. **Caveat, learned the hard way 2026-08-13:** `prisma.config.ts` only auto-loads `.env` (production), never `.env.local` (staging) — running `npm run db:migrate`/`prisma migrate deploy` bare therefore applies to **production first**, not staging, the opposite of the intended order. Always export `.env.local`'s `DATABASE_URL`/`DIRECT_URL` explicitly (or use a small script that does so) before migrating staging, and treat a bare invocation as a production action requiring the same care as any other prod write.
 - Lock file: `prisma/migrations/migration_lock.toml` (PostgreSQL)
 
 ### Deployment
-- Hosting: Vercel, project `ricky-s-team1/training-portal`. **No GitHub webhook integration** — deploys are manual: `npx vercel --prod` from this folder. Pushing to `origin/main` (GitHub) does NOT redeploy the live app by itself, and CI passing/failing does not gate deploys — this is deliberate scope, not wired up.
+- Hosting: Vercel, project `ricky-s-team1/worksphere` (renamed from `training-portal` 2026-08-14 — see "Live URL" at the top of this file for the domain-alias history). **No GitHub webhook integration** — deploys are manual: `npx vercel --prod` from this folder. Pushing to `origin/main` (GitHub) does NOT redeploy the live app by itself, and CI passing/failing does not gate deploys — this is deliberate scope, not wired up.
 - Env vars (`DATABASE_URL`, `DIRECT_URL`) are set in Vercel's Production environment already; rotate via `vercel env rm/add` if the Supabase password changes, then redeploy.
 - `.vercel/project.json` (small, not gitignored... actually is present in the synced folder) means `vercel` commands work immediately without re-linking on either machine this repo is synced to.
+- **`vercel.json`** (added 2026-08-15) — one Vercel Cron entry, daily at 03:00 UTC, hitting `/api/cron/cleanup-sessions` (deletes expired/long-revoked `Session` rows — see "Known Limitations" for the problem this solves). Guarded by a `CRON_SECRET` env var (generated and set in Vercel Production via `vercel env add` the same day) that Vercel automatically sends as a Bearer token when it triggers the job — the route 401s without it, so it can't be hit by anyone else.
 
 ---
 
 ## Important Files & Modules Quick Reference
 
 - **`src/lib/auth/session.ts`** — session lifecycle, `getCurrentUser()`
-- **`src/proxy.ts`** (added 2026-08-10; Next.js 16 renamed "middleware" to "proxy" — see the file's own comment) — edge-level early auth check, cookie-presence only (no DB access on the Edge runtime). Redirects cookie-less requests to `/login` before a full server render happens; the real session validation (revoked/expired/deactivated) still happens in `getCurrentUser()` as before, unchanged. Imports `SESSION_COOKIE_NAME` from the dependency-free `src/lib/auth/sessionCookieName.ts`, not from `session.ts` directly — `session.ts` pulls in Node's `crypto` and Prisma, both unsupported on the Edge runtime `proxy.ts` runs on.
+- **`src/proxy.ts`** (added 2026-08-10; Next.js 16 renamed "middleware" to "proxy" — see the file's own comment) — edge-level early auth check, cookie-presence only (no DB access on the Edge runtime). Redirects cookie-less requests to `/login` before a full server render happens; the real session validation (revoked/expired/deactivated) still happens in `getCurrentUser()` as before, unchanged. Imports `SESSION_COOKIE_NAME` from the dependency-free `src/lib/auth/sessionCookieName.ts`, not from `session.ts` directly — `session.ts` pulls in Node's `crypto` and Prisma, both unsupported on the Edge runtime `proxy.ts` runs on. Also builds the per-request CSP nonce (`src/lib/csp.ts`). **Simplified 2026-08-15**: dropped a dead `x-nonce` request header it used to set — nothing in the app ever read it (Next.js picks the nonce off the *response* `Content-Security-Policy` header instead); `img-src` also tightened from `'self' data: https:` to `'self' data:` since the app has no `<img>` element anywhere yet.
 - **`src/lib/csrf.ts`** (added 2026-08-10) — synchronizer-token CSRF defense for the one plain-GET route (`/api/reports/export`) that lacks Next.js's automatic Server Action CSRF protection
 - **`src/lib/auth/rbac.ts`** — all authorization logic (see RBAC section)
 - **`src/lib/auth/password.ts`** — Argon2id hash/verify, strength checks, constant-time comparison helper
@@ -556,8 +609,8 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 - **`src/lib/validation/`** — Zod schemas, including the `optionalTrimmedString()` preprocessor that fixed a real production bug (blank optional fields silently passing through as `""` instead of `undefined`, hitting a raw Postgres FK error)
 - **`prisma/schema.prisma`** — entire data model
 
-### Known small bugs found during a full-codebase read (2026-08-08), not yet fixed
-- `src/app/(app)/catalog/courses/actions.ts` and `src/app/(app)/catalog/training-paths/actions.ts` still return the error string `"Only the CEO can manage courses."` / `"Only the CEO can manage training paths."` from their `requireCeo()` helper, even though the actual gate (`canManageCatalogStructure`) has allowed Location Manager too since 2026-08-08. The permission check itself is correct (delegates to `canManageCatalogStructure`); only the copy is stale, and only reachable if a non-CEO/non-Location-Manager somehow bypasses the page-level redirect and hits the action directly.
+### Known small bugs found during a full-codebase read (2026-08-08)
+- ~~`src/app/(app)/catalog/courses/actions.ts` and `src/app/(app)/catalog/training-paths/actions.ts` still return the error string `"Only the CEO can manage courses."` / `"Only the CEO can manage training paths."` from their `requireCeo()` helper, even though the actual gate (`canManageCatalogStructure`) has allowed Location Manager too since 2026-08-08.~~ — **fixed 2026-08-15**: both now return `"You don't have permission to manage courses/training paths."`, and the helper itself was renamed `requireCatalogManager` to match what it actually checks.
 
 ### Bugs found + fixed during a full 9-role permission audit (2026-08-09)
 - **Dashboard "Coordinator" filter dropdown leaked non-Coordinator users.** `src/app/(app)/dashboard/page.tsx`'s coordinators query was `{ role: "COORDINATOR", ...userVisibilityFilter(user) }` — since `userVisibilityFilter` also returns its own `role` key (`{ notIn: [...] }`) for Location Manager/Location Admin, and object spread applies in declaration order, the later spread silently overwrote the explicit `role: "COORDINATOR"`. Result: Location Admins and Consultants appeared as selectable "Coordinator" filter options for those two actor roles (CEO was unaffected — `userVisibilityFilter(CEO)` returns `{}`). Fixed by spreading `userVisibilityFilter(user)` first and setting `role: "COORDINATOR"` last. Verified live with a fresh Location Manager test account. This is now the documented pattern to follow for any future caller that spreads `userVisibilityFilter` alongside its own `role` filter (see the RBAC section's `userVisibilityFilter` caveat above).
@@ -572,7 +625,7 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 - **Authorization:** every server action and page re-checks permissions independently through `rbac.ts` — the frontend nav is never the sole gate
 - **Audit Trail:** `logAudit()` called from essentially every mutating action (7 action files, ~28 call sites) plus two direct calls in login
 - **Error handling:** `UserFacingError` pattern — anything else caught in a server action's try/catch shows a generic "Something went wrong" instead of leaking a raw Prisma/driver error message
-- **Component reuse:** `UserTable`/`ConfirmButton`/`FormModalButton`/`StatusBadge` patterns used consistently
+- **Component reuse:** `ConfirmButton`/`FormModalButton`/`StatusBadge` patterns used consistently (`UserTable` — the legacy per-role list pages' shared table — was deleted 2026-08-15 along with those pages, once they became plain redirects; see "Orphaned routes")
 - **Tailwind:** utility-first, CSS custom properties for theming (`--color-*` variables in `globals.css`, no dark-mode variant)
 
 ---
@@ -580,14 +633,17 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 ## Known Limitations & Future Phases
 
 - **Coordinators cannot assign paths/extra courses** (not yet enabled by design, not an oversight)
-- **Notifications** are CEO-only recipients (could expand to other roles)
+- **Notifications** are CEO-only recipients for most types (could expand further — `PROFILE_CHANGE_REQUESTED` already goes to Coordinators via the undocumented `/profile-requests` feature, see the note under "Forms" above and under Reference Documentation below)
 - **Login rate limiting** (added 2026-08-10, `src/lib/rateLimit.ts`) — two Upstash Redis sliding-window limiters (20/10min per IP, 8/15min per username, both must pass) sit in front of `loginAction`. Fails open (no limiting) if `UPSTASH_REDIS_REST_URL`/`_TOKEN` aren't set, so environments without Upstash configured still work, just unprotected.
 - **No "forgot password" self-service flow** — self-service *change* (knowing your current password) exists (`ChangePasswordButton`), but there's no unauthenticated reset-by-email flow; a forgotten password requires another admin to reset it
 - **Separate staging Supabase project exists** (added 2026-08-10) but local dev and staging still share one dataset the same way prod alone used to — be careful what you create while testing (see the two temporary-data-then-cleanup patterns in `scripts/cleanup-demo.ts` and `scripts/e2e-cleanup-disposable-users.ts` for the safe way to do this)
 - ~~Export route CSRF exposure~~ — fixed 2026-08-10, see Reporting & Exports section above
 - **Argon2 is a native Node module** — confirmed working on Vercel; verify native module support first if hosting ever changes
-- **Orphaned legacy user-list routes** — see "Orphaned routes" section above
-- **Stale error copy in two catalog actions** — see "Known small bugs" above
+- ~~Orphaned legacy user-list routes~~ — fixed 2026-08-15, see "Orphaned routes" section above (now redirects, `UserTable.tsx` deleted)
+- ~~Stale error copy in two catalog actions~~ — fixed 2026-08-15, see "Known small bugs" above
+- ~~Session rows never deleted~~ — fixed 2026-08-15: a daily Vercel Cron (`vercel.json` + `/api/cron/cleanup-sessions`) now deletes expired and long-revoked `Session` rows, which previously accumulated forever (including IP/user-agent PII) since expiry was only ever enforced at read time in `getCurrentUser()`.
+- **`/profile-requests` (self-service profile-change-request workflow) is undocumented in this file** — real feature (`AuditActionType.PROFILE_CHANGE_REQUESTED`/`PROFILE_UPDATED`, `NotificationType.PROFILE_CHANGE_REQUESTED`, a Coordinator-only nav item, `src/app/(app)/profile-requests/` and `src/app/(app)/profile/ProfileChangeRequestButton.tsx`), surfaced while writing the Forms section on 2026-08-15 but not itself documented — needs its own pass.
+- **Six new composite indexes are on staging but not yet on production** — `prisma/migrations/20260815221001_add_performance_indexes/`, see Database Migrations above; run `prisma migrate deploy` against production before/alongside the next deploy.
 
 ---
 
@@ -611,15 +667,16 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 - `docs/Admin-Guide.md` — day-to-day operations, deployment/redeploy steps, troubleshooting, security review notes
 - `docs/Build-Progress.md` — phase-by-phase build log (Phases 1–6, all complete)
 - `AGENTS.md` — Next.js 16 has breaking changes vs. training data; read `node_modules/next/dist/docs/` before writing framework-adjacent code. This file is regenerated by `next dev` — commit it as-is if it reappears in a diff.
-- **Note (2026-08-08, still true 2026-08-09):** the three `docs/*.md` files above still describe the pre-rename role names (Manager/Location Manager rather than Location Manager/Location Admin), the pre-location-scoping Location Manager permissions, and predate the 2026-08-09 Offshore Manager/Team Lead/Trainer/Otter Team roles entirely. Treat this file (`CLAUDE.md`) as authoritative for current role names/permissions until those docs are refreshed too.
+- **Note (2026-08-15):** the three `docs/*.md` files above got a partial refresh this date — post-rename role names, the offshore/placement hierarchy, the CrewNex name/URL, and (in `Getting-Started.md`/`Admin-Guide.md`) a pointer to the Forms feature and current deployment/staging details. `Build-Progress.md`'s Phase 1–6 log itself was deliberately left as originally written (a historical record) with a forward-pointing note added at the top instead of being rewritten. None of the three attempt the same depth as this file — `CLAUDE.md` remains authoritative on any conflict, and still has an acknowledged gap of its own: the `/profile-requests` self-service feature (see Known Limitations above) isn't written up anywhere yet, including here.
 
 ---
 
 ## Next Steps for Development
 
-1. Fix the two stale "Only the CEO can manage..." error strings (see "Known small bugs")
-2. ~~Wire the per-consultant "Training & progress" link into the main `/users/management` table~~ — done 2026-08-13, see "Orphaned routes" above. Still open: decide what to do with the other orphaned legacy per-role user-list pages (`/users/managers`, `/users/coordinators`, etc.) — delete them or redirect them to `/users/management`
-3. Refresh `docs/Getting-Started.md`, `docs/Admin-Guide.md`, `docs/Build-Progress.md` for the role rename + location-scoping + the 2026-08-09 offshore/placement roles (currently only this file reflects all of it)
+1. ~~Fix the two stale "Only the CEO can manage..." error strings~~ — done 2026-08-15, see "Known small bugs"
+2. ~~Wire the per-consultant "Training & progress" link into the main `/users/management` table~~ — done 2026-08-13, see "Orphaned routes" above. ~~Still open: decide what to do with the other orphaned legacy per-role user-list pages~~ — done 2026-08-15: each now redirects to `/users/management`.
+3. Refresh `docs/Getting-Started.md`, `docs/Admin-Guide.md`, `docs/Build-Progress.md` for the role rename + location-scoping + the 2026-08-09 offshore/placement roles + the CrewNex rebrand + Forms (currently only this file reflects all of it) — **partially done 2026-08-15**, see the Reference Documentation note below for what's still outstanding
+3a. Write up the `/profile-requests` self-service feature in this file — surfaced but not documented while writing the 2026-08-15 Forms section, see Known Limitations above
 4. ~~Consider a separate staging database before wider rollout~~ — done 2026-08-10 ("Training-Project-Staging")
 5. A self-service "forgot password" flow, if/when moving past pilot scale (login rate limiting is done, see Key Features)
 6. Expand Coordinator permissions (path/extra-course assignment) if the product calls for it
@@ -629,8 +686,12 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 10. ~~Error monitoring (e.g. Sentry)~~ — done 2026-08-10, `@sentry/nextjs` (see Tech Stack)
 11. ~~Unit tests for the RBAC matrix~~ — done 2026-08-10, expanded to unit-test coverage across most of `src/lib/` and E2E specs for the 4 offshore/placement roles (see "Testing")
 12. ~~N+1 queries in `src/lib/reports.ts`~~ — fixed 2026-08-10. `getDashboardAggregates`/`getConsultantReportRows` previously called `getConsultantProgress` once per consultant (~5 queries each — ~3,500 queries per page load at 700 users). Replaced with `getConsultantProgressBatch()` in `content-resolution.ts`: 5 total queries regardless of N (batched `consultantTrainingAssignment`/`trainingPathCourse`/`consultantExtraCourse`/`courseVideo`/`videoCompletion` lookups, joined in JS via `Map`s). Preserves the exact per-course-sum video-count semantics of the original (no cross-course video dedup). Both call sites in `reports.ts` now build one `Map<consultantUserId, ConsultantProgress>` up front instead of a `Promise.all` of N single-consultant calls; every other caller of `getConsultantProgress` (a consultant's own dashboard, per-consultant detail page, `/my-courses`) is untouched. Covered by new unit tests in `content-resolution.test.ts` (empty-id-list short-circuit, a multi-consultant path+extra+shared-course scenario matching `getConsultantProgress`'s output exactly, and the 0-video 0%-not-NaN case) and verified live against staging (`/dashboard` and `/reports/exports` render correctly, no console errors beyond the known dev-mode Sentry/eval CSP noise).
-13. Fix the rate-limiter-vs-E2E-suite tension documented under "Testing" — the full E2E suite can't currently run start-to-finish without hitting the CEO account's login rate limit partway through
+13. ~~Fix the rate-limiter-vs-E2E-suite tension documented under "Testing"~~ — done 2026-08-15, `RATE_LIMIT_DISABLED` escape hatch, see "Testing"
 14. `e2e/user-management.spec.ts`'s self-lockout test expects a "CEOAdmin" demo account that `scripts/seed-demo.ts` doesn't create (see "Testing") — either add that account to the seed script or change the test to use an account the script actually creates
+15. Apply the pending `20260815221001_add_performance_indexes` migration to production (already on staging) — see Database Migrations above
+16. Merge the Forms IDOR/validation fixes, the performance work, the E2E/CI work, and this cleanup pass from `phase-2` to `main`, push, and deploy — see the top of this file's Repository/Live URL notes for the current branch state at time of writing
+17. Consider adding request-scoped `select` clauses to the remaining full-`User`-row list queries not touched in the 2026-08-15 pass (most list pages still pull every column) — the two worst offenders (`location-overview`, `bulk-reassign`) were fixed; others are lower-traffic
+18. Add server-side answer-length/option validation coverage to `e2e/forms.spec.ts` beyond the happy path (currently only unit-tests the pathname-prefix check in isolation) — the validation logic itself lives inline in `submitFormResponseAction` rather than as separately-testable pure functions
 
 ---
 
@@ -638,7 +699,9 @@ by hand in the meantime — `redis.keys("ratelimit:login:*")` then `del`).
 
 For questions about the codebase structure, architectural decisions, or development workflow, refer to comments in key files (`src/lib/auth/rbac.ts`, `prisma/schema.prisma`, etc.) and `docs/Getting-Started.md`.
 
-**Last Updated:** 2026-08-13 — fixed a real discoverability gap: `/users/management` (the only nav-linked user list) never linked to `/users/consultants/[id]`, so the working "Assign training path" feature was unreachable for every role, not just Coordinators, without typing a URL directly (see "Orphaned routes"). Also added an optional `TrainingPath.technology` tag (set by CEO/Location Manager on the catalog pages) used to soft-sort the training-path picker so technology-matching paths surface first, without restricting what's assignable (see "Training Catalog"/"Training Assignment"). Corrected a stale doc claim that Coordinators couldn't assign a primary training path — they always could; only extra-course assignment is Coordinator-restricted.
+**Last Updated:** 2026-08-15 — a full end-to-end review pass across four areas, all on the `phase-2` branch (not yet merged to `main` as of this writing): **(1) Security** — fixed two cross-form IDOR bugs in the Forms feature (field edit/delete and access-grant revoke were scoped by a bare client-supplied id, not also the parent form), and added server-side validation of public form submissions (file pathname/size/count against the field's real config, answer length/option values) that previously only existed client-side. **(2) Performance & DB** — added 6 composite indexes (applied to staging, not yet production), stopped the dashboard from computing consultant progress twice per render (`getDashboardData()`), paginated `/forms/[id]/submissions`, and added a daily cron to clean up the previously-immortal `Session` table. **(3) Tests & CI** — added a full Forms E2E spec, a `typecheck` CI step, widened CI to `phase-*` branches, and fixed the rate-limiter-vs-E2E-suite lockout with a local-only bypass. **(4) Cleanup & docs** — fixed stale error copy, turned 5 orphaned legacy user-list pages into redirects (deleting the now-dead `UserTable.tsx`), tightened the CSP, added this file's first real Forms documentation, and gave the three `docs/*.md` files a partial refresh (see "Reference Documentation" above for what that pass did and didn't cover). See `optimization.md` at the repo root for the original review this pass worked from.
+
+**Previously (2026-08-13):** fixed a real discoverability gap: `/users/management` (the only nav-linked user list) never linked to `/users/consultants/[id]`, so the working "Assign training path" feature was unreachable for every role, not just Coordinators, without typing a URL directly (see "Orphaned routes"). Also added an optional `TrainingPath.technology` tag (set by CEO/Location Manager on the catalog pages) used to soft-sort the training-path picker so technology-matching paths surface first, without restricting what's assignable (see "Training Catalog"/"Training Assignment"). Corrected a stale doc claim that Coordinators couldn't assign a primary training path — they always could; only extra-course assignment is Coordinator-restricted.
 **Previously (2026-08-10):** enterprise-scale hardening pass: added indexes on the offshore/placement `User` fields, wrapped the marketing-readiness status flip in a transaction, added security headers and top-level error boundaries, added login rate limiting (Upstash Redis), added an edge-level early-auth `proxy.ts`, added CSRF protection to the report-export route, stood up a separate staging Supabase project so local dev no longer writes into the production database, added Sentry error monitoring, fully migrated the repo from GitLab to a private GitHub repo (`origin`, GitLab project deleted outright by explicit user decision), added a Vitest unit test suite (182 tests, mostly `src/lib/`, led by a full RBAC matrix suite), added 3 new E2E specs covering the 4 offshore/placement roles end to end including the dual Trainer+Otter sign-off pipeline, and fixed two bugs in the shared E2E login fixture found while writing those. Restricted report-export access to CEO/Location Manager only (previously included Location Admin). Fixed the N+1 query pattern in `reports.ts` via a new batched `getConsultantProgressBatch()` in `content-resolution.ts` (~5N queries → 5, see Next Steps item 12). See "Repository", "Staging vs. production", "Testing", and the Sentry/rate-limiting/CSRF notes under Tech Stack, User Management, and Reporting & Exports for details.
 **Previously (2026-08-09):** added the Offshore Manager / Offshore Team Lead / Trainer / Otter Team roles and the full post-training placement pipeline (dual Trainer+Otter sign-off, marketing-readiness rollup, Calendly link-out scheduling, Location Overview dashboard); documented the Consultant `technology`/`visaType`/`dateOfBirth`/`offshoreOffice` fields that were added earlier the same day but missed in the previous pass; fixed and documented two bugs found during a full 9-role permission audit (dashboard Coordinator-filter leak, `/users/management` dead-end for the new roles).
 **Generated by:** Cowork Claude Documentation Generator

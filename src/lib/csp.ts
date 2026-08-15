@@ -14,7 +14,11 @@ export function buildCsp(nonce: string, isProduction: boolean): string {
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    // No <img> element exists anywhere in the app today (Video.thumbnailUrl
+    // is stored/edited but never rendered as an image) — 'self' + data: is
+    // the actual footprint, not a broad https: allowance for a feature that
+    // doesn't exist yet. Widen this if that changes.
+    "img-src 'self' data:",
     "font-src 'self' data:",
     // Public Forms file uploads go directly from the browser to Vercel Blob
     // storage (client-side upload via @vercel/blob/client), bypassing this

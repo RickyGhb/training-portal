@@ -9,15 +9,15 @@ import { trainingPathSchema } from "@/lib/validation/catalog";
 import { logAudit } from "@/lib/audit";
 import type { FormState } from "@/app/(app)/users/actions";
 
-async function requireCeo() {
+async function requireCatalogManager() {
   const actor = await getCurrentUser();
   if (!actor || !canManageCatalogStructure(actor.role)) return null;
   return actor;
 }
 
 export async function createTrainingPathAction(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requireCeo();
-  if (!actor) return { error: "Only the CEO can manage training paths." };
+  const actor = await requireCatalogManager();
+  if (!actor) return { error: "You don't have permission to manage training paths." };
 
   const parsed = trainingPathSchema.safeParse({
     name: formData.get("name"),
@@ -48,8 +48,8 @@ export async function createTrainingPathAction(_prevState: FormState, formData: 
 }
 
 export async function updateTrainingPathAction(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requireCeo();
-  if (!actor) return { error: "Only the CEO can manage training paths." };
+  const actor = await requireCatalogManager();
+  if (!actor) return { error: "You don't have permission to manage training paths." };
 
   const id = String(formData.get("trainingPathId") ?? "");
   const parsed = trainingPathSchema.safeParse({
@@ -78,7 +78,7 @@ export async function updateTrainingPathAction(_prevState: FormState, formData: 
 }
 
 export async function setTrainingPathStatusAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const id = String(formData.get("trainingPathId"));
@@ -100,7 +100,7 @@ export async function setTrainingPathStatusAction(formData: FormData): Promise<v
 }
 
 export async function deleteTrainingPathAction(formData: FormData): Promise<{ error?: string } | void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const id = String(formData.get("trainingPathId"));
@@ -135,7 +135,7 @@ export async function deleteTrainingPathAction(formData: FormData): Promise<{ er
 }
 
 export async function addCourseToPathAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const trainingPathId = String(formData.get("trainingPathId"));
@@ -166,7 +166,7 @@ export async function addCourseToPathAction(formData: FormData): Promise<void> {
 }
 
 export async function removeCourseFromPathAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const trainingPathId = String(formData.get("trainingPathId"));
@@ -187,7 +187,7 @@ export async function removeCourseFromPathAction(formData: FormData): Promise<vo
 }
 
 export async function moveCourseInPathAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const trainingPathId = String(formData.get("trainingPathId"));

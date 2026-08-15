@@ -1,4 +1,6 @@
-# Training Portal — Getting Started
+# CrewNex — Getting Started
+
+*(Product name as of 2026-08-14 — this app was called "Training Portal" through most of its build history; you'll still see that name in code comments, the repo name, and older commits. See `CLAUDE.md`'s "Project Overview" for the rename history.)*
 
 This is the "start here" document. It explains what the app is, how it's put together, and how to pick the work back up on a different machine. For day-to-day admin operations (creating users, exporting reports, troubleshooting) see `Admin-Guide.md` in this same folder. For the phase-by-phase build history, see `Build-Progress.md`.
 
@@ -8,11 +10,13 @@ This is the "start here" document. It explains what the app is, how it's put tog
 
 A training portal for a consulting company. It manages:
 
-- **People**, in a strict role hierarchy (CEO → Manager → Location Manager → Coordinator → Consultant)
+- **People**, across two parallel role hierarchies: a location hierarchy (CEO → Location Manager → Location Admin → Coordinator → Consultant) and an offshore/placement hierarchy (Offshore Manager → Offshore Team Lead, plus Trainer and Otter Team) — see `CLAUDE.md` for the full breakdown of why these are kept separate.
 - **A training catalog** (Training Paths made of Courses, Courses made of Videos embedded from Google Drive)
 - **Assignments** (each Consultant gets one primary Training Path, plus optional extra Courses)
 - **Progress tracking** (Consultants mark videos complete; everyone above them can see rollups)
-- **Reporting** (dashboards, filtered exports to CSV/XLSX, a full audit log, and CEO notifications for a small set of sensitive actions)
+- **A post-training placement pipeline** (Trainer demo feedback + independent Otter Team sign-off move a Consultant to "In Marketing")
+- **Public forms** (`/forms` to build, `/f/{slug}` to fill out — anyone with the link can respond, no login required; see `CLAUDE.md`'s "Forms" section)
+- **Reporting** (dashboards, filtered exports to CSV/XLSX, a full audit log, and notifications for a set of sensitive actions)
 
 It's a single Next.js application (App Router, TypeScript) with a Postgres database (Supabase), deployed on Vercel.
 
@@ -25,7 +29,7 @@ This trips people up, so it's worth being explicit:
 | Where | What it is | What happens if you close your laptop |
 |---|---|---|
 | **This folder** (`~/Documents/Sync-Shared/Projects/training-portal`) | The source code. Where you make changes. | Nothing — this is just files on disk. |
-| **Vercel** (`training-portal-flame.vercel.app`) | The live, running app. A copy of the code, built and hosted on Vercel's servers. | **Nothing.** The live app keeps running regardless of your laptop's state — it's not connected to your laptop at all once deployed. |
+| **Vercel** (`crewnex.vercel.app`) | The live, running app. A copy of the code, built and hosted on Vercel's servers. | **Nothing.** The live app keeps running regardless of your laptop's state — it's not connected to your laptop at all once deployed. |
 | **Supabase** | The database. Also cloud-hosted, also independent of your laptop. | Nothing. |
 
 **The one-directional link:** code changes only reach the live app when someone explicitly runs `npx vercel --prod` from this folder. There's no auto-deploy, no GitHub Actions, nothing watching for changes. Vercel doesn't know a change happened until you tell it to build and ship one.
@@ -60,20 +64,24 @@ The Vercel project link travels with the folder (`.vercel/project.json` is a sma
 ## The role hierarchy, in plain terms
 
 ```
-CEO
- └─ Manager
-     └─ Location Manager
-         └─ Coordinator
-             └─ Consultant
+Location hierarchy:            Offshore/placement hierarchy:
+CEO                             Offshore Manager
+ └─ Location Manager             └─ Offshore Team Lead
+     └─ Location Admin          (Trainer, Otter Team manage no one —
+         └─ Coordinator          they only see Consultants explicitly
+             └─ Consultant       assigned to them)
 ```
 
-- **CEO** — one person, full access to everything. Only role that can create Locations, Training Paths, and Courses.
-- **Manager** — operates across all locations. Can create/manage everyone except other CEOs/Managers.
-- **Location Manager** — confined to one location. Manages Coordinators and Consultants within it.
+- **CEO** — one person, full access to everything. Only role that can create Locations, and the only one who can create every other role.
+- **Location Manager** — confined to one location. Manages Location Admins, Coordinators, and Consultants within it; can also manage Training Paths/Courses (global, not location-scoped).
+- **Location Admin** — confined to one location. Manages Coordinators and Consultants within it.
 - **Coordinator** — owns a set of Consultants directly. Can be tied to a location, or "independent" (CEO's choice at creation time).
 - **Consultant** — the end learner. Sees only their own assigned training. No administrative access at all.
+- **Offshore Manager / Offshore Team Lead / Trainer / Otter Team** — a separate axis entirely, scoped by office (`LOCATION_1`/`LOCATION_2`) or direct per-consultant assignment rather than the `Location` model above. Trainer and Otter Team each give one independent demo-readiness verdict per Consultant; both must say "ready" before a Consultant moves to "In Marketing." See `CLAUDE.md`'s RBAC section for the full detail on why these stay a separate scoping axis.
 
-Each role can only create accounts for roles *below* it, and can only see/manage what falls in their own scope — this is enforced on the server for every action, not just hidden in the UI.
+Each role can only create accounts for roles *below* it (within its own hierarchy), and can only see/manage what falls in their own scope — this is enforced on the server for every action, not just hidden in the UI.
+
+*(Renamed 2026-08-08: the old `Manager` role is now `Location Manager`, and the old `Location Manager` role is now `Location Admin` — if you see either old name in a stale comment or doc, that's what it maps to.)*
 
 ---
 
@@ -119,8 +127,8 @@ They log in and see two things only: **My Dashboard** (their own progress — pe
 - `src/lib/auth/rbac.ts` — the single source of truth for who can do what. Every server action and page checks permissions through this file.
 - `src/lib/content-resolution.ts` — the "what can this Consultant actually see" logic (the union described above).
 - `src/lib/reports.ts` — dashboard aggregates and the exportable report row data.
-- `src/app/(app)/` — everything behind login, one folder per feature area (`users/`, `catalog/`, `reports/`, etc.). Each has a `page.tsx` (the screen) and usually an `actions.ts` (the server-side mutations, each one re-checking permissions independently).
-- `src/app/login/`, `src/app/api/reports/export/` — the two things that aren't behind the standard app layout: the public login page and the one plain REST endpoint (file download).
+- `src/app/(app)/` — everything behind login, one folder per feature area (`users/`, `catalog/`, `reports/`, `forms/`, etc.). Each has a `page.tsx` (the screen) and usually an `actions.ts` (the server-side mutations, each one re-checking permissions independently).
+- `src/app/login/`, `src/app/f/[slug]/`, `src/app/api/` — the things that aren't behind the standard authenticated app layout: the public login page, the public form-fill page (`/f/{slug}`, no login required), and a handful of plain REST endpoints (report export, form file upload/download, the session-cleanup cron).
 - `prisma/schema.prisma` — the entire data model in one file.
 
 ---

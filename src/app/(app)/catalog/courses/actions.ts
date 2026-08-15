@@ -9,15 +9,15 @@ import { courseSchema } from "@/lib/validation/catalog";
 import { logAudit } from "@/lib/audit";
 import type { FormState } from "@/app/(app)/users/actions";
 
-async function requireCeo() {
+async function requireCatalogManager() {
   const actor = await getCurrentUser();
   if (!actor || !canManageCatalogStructure(actor.role)) return null;
   return actor;
 }
 
 export async function createCourseAction(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requireCeo();
-  if (!actor) return { error: "Only the CEO can manage courses." };
+  const actor = await requireCatalogManager();
+  if (!actor) return { error: "You don't have permission to manage courses." };
 
   const parsed = courseSchema.safeParse({
     name: formData.get("name"),
@@ -42,8 +42,8 @@ export async function createCourseAction(_prevState: FormState, formData: FormDa
 }
 
 export async function updateCourseAction(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const actor = await requireCeo();
-  if (!actor) return { error: "Only the CEO can manage courses." };
+  const actor = await requireCatalogManager();
+  if (!actor) return { error: "You don't have permission to manage courses." };
 
   const id = String(formData.get("courseId") ?? "");
   const parsed = courseSchema.safeParse({
@@ -71,7 +71,7 @@ export async function updateCourseAction(_prevState: FormState, formData: FormDa
 }
 
 export async function setCourseStatusAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const id = String(formData.get("courseId"));
@@ -93,7 +93,7 @@ export async function setCourseStatusAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteCourseAction(formData: FormData): Promise<{ error?: string } | void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const id = String(formData.get("courseId"));
@@ -128,7 +128,7 @@ export async function deleteCourseAction(formData: FormData): Promise<{ error?: 
 }
 
 export async function addVideoToCourseAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const courseId = String(formData.get("courseId"));
@@ -157,7 +157,7 @@ export async function addVideoToCourseAction(formData: FormData): Promise<void> 
 }
 
 export async function removeVideoFromCourseAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const courseId = String(formData.get("courseId"));
@@ -178,7 +178,7 @@ export async function removeVideoFromCourseAction(formData: FormData): Promise<v
 }
 
 export async function moveVideoInCourseAction(formData: FormData): Promise<void> {
-  const actor = await requireCeo();
+  const actor = await requireCatalogManager();
   if (!actor) return;
 
   const courseId = String(formData.get("courseId"));

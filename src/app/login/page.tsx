@@ -20,7 +20,7 @@ export default async function LoginPage() {
       <div className="relative w-full max-w-sm rounded-2xl border border-[var(--color-shell-border)] bg-[var(--color-surface)] p-8 shadow-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-accent-strong)]">Welcome</p>
         <h1 className="mt-2 font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--color-ink)]">
-          Training Portal
+          CrewNex
         </h1>
         <p className="mb-6 mt-1 text-sm text-[var(--color-ink-soft)]">Sign in with your username and password.</p>
         <LoginForm />

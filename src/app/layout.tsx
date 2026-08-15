@@ -15,7 +15,7 @@ const sans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Training Portal",
+  title: "CrewNex",
   description: "Private training portal",
 };
 

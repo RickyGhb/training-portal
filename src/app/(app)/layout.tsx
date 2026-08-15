@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="flex w-64 shrink-0 flex-col bg-[var(--color-shell)] text-[var(--color-shell-text)]">
         <div className="border-b border-[var(--color-shell-border)] px-5 py-5">
           <p className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--color-accent-soft)]">
-            Training Portal
+            CrewNex
           </p>
           <Link
             href="/profile"

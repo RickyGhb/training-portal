@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Content-Security-Policy is set per-request in src/proxy.ts instead of
 // here, because it needs a fresh nonce on every request (see proxy.ts for
@@ -17,4 +18,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "rbc-th",
+  project: "javascript-nextjs",
+  silent: true,
+  widenClientFileUpload: true,
+});

@@ -577,10 +577,14 @@ server Playwright itself boots) — never set in Vercel Production/Preview.
 - `e2e/auth.spec.ts`'s sign-out test intermittently fails locally — Next's dev-mode overlay
   widget (`<nextjs-portal>`) can intercept the "Sign out" button's click, a dev-server rendering
   artifact rather than an app bug.
-- `e2e/user-management.spec.ts`'s self-lockout test expects a demo CEO account named "CEOAdmin"
-  that `scripts/seed-demo.ts` does not create — a pre-existing mismatch between that one test and
-  the seed script, invisible until staging (with only the seed script's data, no manually-added
-  extra accounts) actually ran this suite for the first time.
+- ~~`e2e/user-management.spec.ts`'s self-lockout test expects a demo CEO account named
+  "CEOAdmin"~~ — **fixed 2026-08-19.** The account is real, but it lives only in the *production*
+  database: `seed-demo.ts` creates no CEO at all (it renames the existing `tempadmin`, and its own
+  header comment says it deliberately never touches `CEOAdmin`/`SriniAdmin`), so the assertion
+  could never pass against seeded data. The test now contrasts the logged-in CEO's own row against
+  `DEMO_USERS.manager` (`arivera`), which the seed script does create — the actions are hidden by
+  `UserRowActions`' `isSelf` flag rather than by role, so any other manageable row proves the same
+  point without depending on production data.
 
 ### Database Migrations
 - `prisma/migrations/20260807051647_init/` — full initial schema
@@ -699,7 +703,7 @@ server Playwright itself boots) — never set in Vercel Production/Preview.
 11. ~~Unit tests for the RBAC matrix~~ — done 2026-08-10, expanded to unit-test coverage across most of `src/lib/` and E2E specs for the 4 offshore/placement roles (see "Testing")
 12. ~~N+1 queries in `src/lib/reports.ts`~~ — fixed 2026-08-10. `getDashboardAggregates`/`getConsultantReportRows` previously called `getConsultantProgress` once per consultant (~5 queries each — ~3,500 queries per page load at 700 users). Replaced with `getConsultantProgressBatch()` in `content-resolution.ts`: 5 total queries regardless of N (batched `consultantTrainingAssignment`/`trainingPathCourse`/`consultantExtraCourse`/`courseVideo`/`videoCompletion` lookups, joined in JS via `Map`s). Preserves the exact per-course-sum video-count semantics of the original (no cross-course video dedup). Both call sites in `reports.ts` now build one `Map<consultantUserId, ConsultantProgress>` up front instead of a `Promise.all` of N single-consultant calls; every other caller of `getConsultantProgress` (a consultant's own dashboard, per-consultant detail page, `/my-courses`) is untouched. Covered by new unit tests in `content-resolution.test.ts` (empty-id-list short-circuit, a multi-consultant path+extra+shared-course scenario matching `getConsultantProgress`'s output exactly, and the 0-video 0%-not-NaN case) and verified live against staging (`/dashboard` and `/reports/exports` render correctly, no console errors beyond the known dev-mode Sentry/eval CSP noise).
 13. ~~Fix the rate-limiter-vs-E2E-suite tension documented under "Testing"~~ — done 2026-08-15, `RATE_LIMIT_DISABLED` escape hatch, see "Testing"
-14. `e2e/user-management.spec.ts`'s self-lockout test expects a "CEOAdmin" demo account that `scripts/seed-demo.ts` doesn't create (see "Testing") — either add that account to the seed script or change the test to use an account the script actually creates
+14. ~~`e2e/user-management.spec.ts`'s self-lockout test expects a "CEOAdmin" demo account~~ — done 2026-08-19: the test now uses `DEMO_USERS.manager`, an account the seed script actually creates (see "Testing"). The full E2E suite passes against staging.
 15. ~~Apply the pending `20260815221001_add_performance_indexes` migration to production~~ — done 2026-08-16, re-verified 2026-08-19
 16. Merge the Forms IDOR/validation fixes, the performance work, the E2E/CI work, and this cleanup pass from `phase-2` to `main`, push, and deploy — see the top of this file's Repository/Live URL notes for the current branch state at time of writing
 17. Consider adding request-scoped `select` clauses to the remaining full-`User`-row list queries not touched in the 2026-08-15 pass (most list pages still pull every column) — the two worst offenders (`location-overview`, `bulk-reassign`) were fixed; others are lower-traffic

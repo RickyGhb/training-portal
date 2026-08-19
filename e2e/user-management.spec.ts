@@ -70,8 +70,15 @@ test.describe("User Management", () => {
       await expect(ownRow.getByRole("button", { name: "Delete" })).toHaveCount(0);
       await expect(ownRow.getByRole("button", { name: "Reset password" })).toBeVisible();
 
-      await page.goto("/users/management?q=CEOAdmin");
-      const otherRow = page.locator("tbody tr", { hasText: "CEOAdmin" });
+      // Any other manageable row proves the contrast — the actions are hidden by
+      // UserRowActions' isSelf flag, not by role. This used to assert against a
+      // "CEOAdmin" account, which only exists in the production database:
+      // scripts/seed-demo.ts creates no CEO at all (it renames the existing
+      // tempadmin, and explicitly leaves CEOAdmin/SriniAdmin alone), so the
+      // assertion could never pass against seeded data.
+      const otherUsername = DEMO_USERS.manager.username;
+      await page.goto(`/users/management?q=${otherUsername}`);
+      const otherRow = page.locator("tbody tr", { hasText: otherUsername });
       await expect(otherRow.getByRole("button", { name: "Deactivate" })).toBeVisible();
       await expect(otherRow.getByRole("button", { name: "Delete" })).toBeVisible();
     });

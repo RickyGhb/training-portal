@@ -116,6 +116,63 @@ body {
     border-top: 1px solid var(--color-border-soft);
   }
 
+  /* Same look as .table-shell, but the rounding/border/scrolling live on a
+     wrapper element instead of the table itself — .table-shell's own
+     `overflow: hidden` makes it a scroll container, which silently breaks
+     `position: sticky` on the first column of a wide, side-scrolling grid. */
+  .grid-shell {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .grid-table {
+    width: 100%;
+    font-size: 0.875rem;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .grid-table thead {
+    background: var(--color-muted-soft);
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-soft);
+  }
+
+  .grid-table th,
+  .grid-table td {
+    padding: 0.6rem 1rem;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+
+  .grid-table tbody tr {
+    border-top: 1px solid var(--color-border-soft);
+  }
+
+  .grid-table tbody td {
+    border-top: 1px solid var(--color-border-soft);
+  }
+
+  /* The pinned first column needs its own opaque background, otherwise the
+     cells it scrolls over show through it. */
+  .grid-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+  }
+
+  .grid-table thead .grid-sticky {
+    background: var(--color-muted-soft);
+    z-index: 2;
+  }
+
   .btn-primary {
     display: inline-flex;
     align-items: center;

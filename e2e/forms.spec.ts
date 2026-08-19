@@ -22,6 +22,7 @@ test.describe("Forms", () => {
     const trainerUsername = disposableUsername("formtrainer");
     const formTitle = `E2E Form ${Date.now()}`;
     const answerValue = "Ada Lovelace";
+    const otherAnswerValue = "Grace Hopper";
 
     await loginAs(page, DEMO_USERS.ceo.username);
 
@@ -66,19 +67,46 @@ test.describe("Forms", () => {
     await page.getByRole("button", { name: "Share" }).click();
     await expect(page.getByText("can now see this form's data.")).toBeVisible();
 
-    // An anonymous visitor fills out the public form.
+    // Two anonymous visitors fill out the public form.
     await page.context().clearCookies();
-    await page.goto(`/f/${slug}`);
-    await page.getByLabel("Full name").fill(answerValue);
-    await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page.getByText("Thanks — your response was submitted.")).toBeVisible();
+    for (const value of [answerValue, otherAnswerValue]) {
+      await page.goto(`/f/${slug}`);
+      await page.getByLabel("Full name").fill(value);
+      await page.getByRole("button", { name: "Submit" }).click();
+      await expect(page.getByText("Thanks — your response was submitted.")).toBeVisible();
+    }
 
-    // The granted Trainer can now see the response.
+    // The granted Trainer can now see the responses, as a grid: one row per
+    // response, one column per question, every answer visible without having
+    // to open anything.
     await loginAs(page, trainerUsername, DISPOSABLE_PASSWORD);
     await page.goto(`/forms/${formId}/submissions`);
     await expect(page).toHaveURL(new RegExp(`/forms/${formId}/submissions$`));
-    await expect(page.getByText("1 response")).toBeVisible();
-    await page.getByText("View").click();
-    await expect(page.getByText(answerValue)).toBeVisible();
+    await expect(page.getByText("2 responses")).toBeVisible();
+
+    await expect(page.getByRole("columnheader", { name: "Submitted" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Full name" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: answerValue })).toBeVisible();
+    await expect(page.getByRole("cell", { name: otherAnswerValue })).toBeVisible();
+
+    // Sorting by a question column reorders without losing any row.
+    await page.getByRole("link", { name: "Full name" }).click();
+    await expect(page).toHaveURL(/sort=/);
+    await expect(page.getByRole("row")).toHaveCount(3); // header + 2 responses
+
+    // Searching narrows to the matching response only.
+    await page.getByLabel("Search answers").fill(answerValue);
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText("1 response matching your filters")).toBeVisible();
+    await expect(page.getByRole("cell", { name: answerValue })).toBeVisible();
+    await expect(page.getByRole("cell", { name: otherAnswerValue })).toHaveCount(0);
+
+    // Clicking a row expands it into the full-answer panel underneath.
+    await page.getByRole("cell", { name: answerValue }).click();
+    await expect(page.getByRole("definition").filter({ hasText: answerValue })).toBeVisible();
+
+    // A viewer with only a grant may read responses but never delete one —
+    // that stays with the form's creator and the CEO.
+    await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
   });
 });

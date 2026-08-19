@@ -71,6 +71,7 @@ enum AuditActionType {
   FORM_UPDATED
   FORM_DELETED
   FORM_SUBMITTED
+  FORM_SUBMISSION_DELETED
 }
 
 enum NotificationType {

@@ -17,6 +17,17 @@ type ConfirmButtonProps = {
  * A button that opens a confirmation modal before submitting its form action.
  * Used for every destructive/high-impact action per the product spec
  * (delete, deactivate, change training path, bulk reassign, etc).
+ *
+ * Passing `action`: a Server Action is only registered for a route if some
+ * *client* component in that route's own module graph imports it. Handing one
+ * straight from a Server Component to this one is fine when a sibling client
+ * component on the same route already imports that actions module (as
+ * locations/page.tsx does — location-form.tsx imports ./actions), but on a
+ * route where nothing else does, the action is never registered and every
+ * submit fails at runtime with "Failed to find Server Action" (verified in a
+ * production build, A/B'd against a clean rebuild). The reliable pattern is a
+ * small "use client" wrapper that imports the action itself — see
+ * forms/[id]/submissions/delete-submission-button.tsx.
  */
 export function ConfirmButton({
   action,

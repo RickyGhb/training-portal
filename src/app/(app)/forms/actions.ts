@@ -1,6 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { del } from "@vercel/blob";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
@@ -411,3 +412,54 @@ export async function revokeFormAccessAction(formData: FormData): Promise<{ erro
 
 /** Re-exported for the submissions page, which needs the same combined check per-row. */
 export { canViewForm, canViewFormsByCreator };
+
+/**
+ * Deletes a single response, plus any files uploaded with it.
+ *
+ * Deliberately restricted to the form's creator / CEO via requireFormEditor —
+ * a location-scoped or grant-holding viewer can read responses but must not be
+ * able to destroy them. The submissionId is re-checked against the formId
+ * rather than trusted on its own: scoping a mutation by a bare client-supplied
+ * id is exactly the cross-form IDOR fixed in updateFieldAction/removeFieldAction.
+ */
+export async function deleteSubmissionAction(formData: FormData): Promise<{ error?: string } | void> {
+  const formId = String(formData.get("formId"));
+  const submissionId = String(formData.get("submissionId"));
+  const { actor, form, error } = await requireFormEditor(formId);
+  if (!form) return { error: error ?? "Form not found." };
+
+  const submission = await prisma.formSubmission.findFirst({
+    where: { id: submissionId, formId: form.id },
+    select: { id: true, submittedAt: true, files: { select: { storagePathname: true } } },
+  });
+  if (!submission) return { error: "Response not found." };
+
+  // Remove the blobs first. The FormFileUpload rows cascade away with the
+  // submission, so doing this afterwards would leave unreferenced private
+  // blobs behind with nothing left pointing at them.
+  if (submission.files.length > 0) {
+    try {
+      await del(submission.files.map((f) => f.storagePathname));
+    } catch {
+      // A blob that's already gone shouldn't block deleting the response —
+      // the DB row is the record that matters here.
+    }
+  }
+
+  await prisma.formSubmission.delete({ where: { id: submission.id } });
+
+  await logAudit({
+    actorUserId: actor.id,
+    actionType: "FORM_SUBMISSION_DELETED",
+    targetEntityType: "FormSubmission",
+    targetEntityId: submission.id,
+    formId: form.id,
+    metadata: {
+      formTitle: form.title,
+      submittedAt: submission.submittedAt.toISOString(),
+      fileCount: submission.files.length,
+    },
+  });
+
+  revalidatePath(`/forms/${form.id}/submissions`);
+}
